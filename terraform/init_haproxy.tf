@@ -22,11 +22,15 @@ locals {
                     on-link: true
       - path: /etc/sysctl.d/88-nat.conf
         content: |
-          net.ipv4.ip_forward=1                    
+          net.ipv4.ip_forward=1
+    package_update: true
+    packages:
+      - curl
+      - iptables
     runcmd:
       - [netplan, generate]
       - [netplan, apply]
-      - [sysctl, system]
+      - [sysctl, --system]
       - [iptables, -t, nat, -A ,POSTROUTING ,-s ,192.168.0.0/16, -o, eth0, -j, MASQUERADE]
     users:
       - name: ubuntu

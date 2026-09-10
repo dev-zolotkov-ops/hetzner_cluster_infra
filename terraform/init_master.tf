@@ -21,13 +21,12 @@ locals {
                     via: 192.168.0.1
                     on-link: true
                   - to: 0.0.0.0/0
-                    via: var.haproxy_private_ip
+                    via: ${var.haproxy_private_ip}
                     metric: 50
                 nameservers:
                   addresses:
                     - 1.1.1.1
                     - 8.8.8.8
-               
     runcmd:
       - [netplan, generate]
       - [netplan, apply]

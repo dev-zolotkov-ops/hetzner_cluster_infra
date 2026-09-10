@@ -22,7 +22,6 @@ locals {
                     on-link: true
                   - to: 0.0.0.0/0
                     via: 192.168.0.1
-                    metric: 50
                 nameservers:
                   addresses:
                     - 1.1.1.1
