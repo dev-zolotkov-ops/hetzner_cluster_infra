@@ -10,6 +10,10 @@ variable "worker_count" {
   type    = number
   default = 1
 }
+variable "ingress_count" {
+  type    = number
+  default = 2
+}
 
 variable "haproxy_private_ip" {
   type    = string

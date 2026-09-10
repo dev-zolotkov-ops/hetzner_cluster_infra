@@ -36,6 +36,25 @@ resource "hcloud_server" "workers" {
   firewall_ids = [hcloud_firewall.k8s-nodes.id]
   labels       = { role = "worker" }
 }
+resource "hcloud_server" "ingress" {
+  for_each    = local.ingress
+  name        = each.value.name
+  image       = "ubuntu-24.04"
+  server_type = "cx23"
+  location    = each.value.location
+  public_net {
+    ipv4_enabled = false
+    ipv6_enabled = false
+  }
+  network {
+    subnet_id = hcloud_network_subnet.k8s-subnet-4.id
+    ip        = each.value.private_ip
+  }
+  user_data    = replace(local.cloud_init_worker, "PRIVATE_IP", each.value.private_ip)
+  ssh_keys     = [data.hcloud_ssh_key.my_key.id]
+  firewall_ids = [hcloud_firewall.k8s-nodes.id]
+  labels       = { role = "ingress" }
+}
 resource "hcloud_server" "haproxy" {
   name        = "haproxy-0"
   image       = "ubuntu-24.04"

@@ -51,4 +51,14 @@ locals {
       private_ip = "192.168.20.${20 + i}"
     }
   }
+
+  ingress_locations = ["fsn1", "nbg1", "hel1"]
+
+  ingress = {
+    for i in range(var.ingress_count) : i => {
+      name       = "ingress-${i}"
+      location   = local.ingress_locations[i % length(local.ingress_locations)]
+      private_ip = "192.168.40.${20 + i}"
+    }
+  }
 }
