@@ -1,4 +1,15 @@
 locals {
+  nat_forwardings = [
+    for index, node in concat(values(local.masters), values(local.workers), values(local.ingress)) : {
+      public_port = 3030 + index
+      private_ip  = node.private_ip
+    }
+  ]
+
+  nat_port_map = {
+    for forwarding in local.nat_forwardings : forwarding.public_port => forwarding.private_ip
+  }
+
   cloud_init_haproxy = <<-EOF
     #cloud-config
     write_files:
@@ -32,6 +43,7 @@ locals {
       - [netplan, apply]
       - [sysctl, --system]
       - [iptables, -t, nat, -A ,POSTROUTING ,-s ,192.168.0.0/16, -o, eth0, -j, MASQUERADE]
+${join("\n", [for forwarding in local.nat_forwardings : "      - [iptables, -t, nat, -A, PREROUTING, -p, tcp, --dport, ${forwarding.public_port}, -j, DNAT, --to-destination, ${forwarding.private_ip}:22]"])}
     users:
       - name: ubuntu
         gecos: Ubuntu User

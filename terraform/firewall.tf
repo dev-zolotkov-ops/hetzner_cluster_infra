@@ -42,4 +42,10 @@ resource "hcloud_firewall" "k8s-haproxy" {
     port       = "6443"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "3030-3050"
+    source_ips = ["${var.admin_ip}/32"]
+  }
 }
