@@ -42,7 +42,10 @@ locals {
       - [netplan, generate]
       - [netplan, apply]
       - [sysctl, --system]
-      - [iptables, -t, nat, -A ,POSTROUTING ,-s ,192.168.0.0/16, -o, eth0, -j, MASQUERADE]
+      - [iptables, -t, nat, -A, POSTROUTING, -s, 192.168.0.0/16, -o, eth0, -j, MASQUERADE]
+      - [iptables, -t, nat, -A, POSTROUTING, -o, enp7s0, -d, 192.168.0.0/16, -p, tcp, --dport, 22, -j, MASQUERADE]
+      - [iptables, -A, FORWARD, -s, 192.168.0.0/16, -m, conntrack, --ctstate, ESTABLISHED,RELATED, -j, ACCEPT]
+      - [iptables, -A, FORWARD, -d, 192.168.0.0/16, -p, tcp, --dport, 22, -m, conntrack, --ctstate, NEW,ESTABLISHED, -j, ACCEPT]
 ${join("\n", [for forwarding in local.nat_forwardings : "      - [iptables, -t, nat, -A, PREROUTING, -p, tcp, --dport, ${forwarding.public_port}, -j, DNAT, --to-destination, ${forwarding.private_ip}:22]"])}
     users:
       - name: ubuntu

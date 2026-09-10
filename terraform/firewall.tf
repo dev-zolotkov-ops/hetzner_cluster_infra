@@ -1,17 +1,17 @@
 resource "hcloud_firewall" "k8s-nodes" {
   name = "k8s-nodes"
-  # rule {
-  #   direction  = "in"
-  #   protocol   = "tcp"
-  #   port       = "22"
-  #   source_ips = ["${var.admin_ip}/32"]
-  # }
-  # rule {
-  #   direction  = "in"
-  #   protocol   = "tcp"
-  #   port       = "6443"
-  #   source_ips = ["${var.admin_ip}/32", "192.168.0.0/16"]
-  # }
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "22"
+    source_ips = ["${var.admin_ip}/32"]
+  }
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "6443"
+    source_ips = ["${var.admin_ip}/32", "192.168.0.0/16"]
+  }
   rule {
     direction  = "in"
     protocol   = "tcp"
