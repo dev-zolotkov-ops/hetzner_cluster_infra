@@ -21,8 +21,7 @@ locals {
                     via: 192.168.0.1
                     on-link: true
                   - to: 0.0.0.0/0
-                    via: ${var.haproxy_private_ip}
-                    metric: 50
+                    via: 192.168.0.1
                 nameservers:
                   addresses:
                     - 1.1.1.1

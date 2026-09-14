@@ -1,0 +1,35 @@
+all:
+  hosts: {}
+  children:
+    control_plane:
+      hosts:
+%{ for index, node in masters ~}
+        ${node.name}:
+          ansible_host: ${haproxy_public_ip}
+          ansible_port: ${3030 + index}
+          ansible_user: ubuntu
+          ip: ${node.private_ip}
+%{ endfor ~}
+    workers:
+      hosts:
+%{ for index, node in workers ~}
+        ${node.name}:
+          ansible_host: ${haproxy_public_ip}
+          ansible_port: ${3030 + length(masters) + index}
+          ansible_user: ubuntu
+          ip: ${node.private_ip}
+%{ endfor ~}
+    ingress:
+      hosts:
+%{ for index, node in ingress ~}
+        ${node.name}:
+          ansible_host: ${haproxy_public_ip}
+          ansible_port: ${3030 + length(masters) + length(workers) + index}
+          ansible_user: ubuntu
+          ip: ${node.private_ip}
+%{ endfor ~}
+    haproxy:
+      hosts:
+        haproxy-0:
+          ansible_host: ${haproxy_public_ip}
+          ansible_user: ubuntu

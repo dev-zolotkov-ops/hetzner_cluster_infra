@@ -20,6 +20,12 @@ variable "haproxy_private_ip" {
   default = "192.168.30.30"
 }
 
+variable "kubeadm_token" {
+  type        = string
+  description = "Static kubeadm bootstrap token used by Kubespray"
+  default     = "5qrmju.mstglmsfgl989pof"
+}
+
 data "hcloud_ssh_key" "my_key" {
   name = "my-key"
 }
