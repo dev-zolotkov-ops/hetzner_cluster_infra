@@ -7,9 +7,7 @@ kubernetes_repo_version: "v1.36"
 kubernetes_package_version: "1.36.4-1.1"
 kubeadm_token: ${kubeadm_token}
 kube_pod_network_cidr: "10.244.0.0/16"
+calico_version: "v3.31.0"
+calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml"
 haproxy_cfg: /etc/haproxy/haproxy.cfg
 haproxy_public_ip: ${haproxy_public_ip}
-ssh_nat_port_mapping:
-%{ for port, private_ip in nat_port_mapping ~}
-  "${port}": ${private_ip}
-%{ endfor ~}

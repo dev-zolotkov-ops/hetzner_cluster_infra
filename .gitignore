@@ -1,3 +1,6 @@
 .terraform/
 *.tfstate
 *.tfstate.*
+kubeconfig.yml
+hosts.yml
+**/vars.yml

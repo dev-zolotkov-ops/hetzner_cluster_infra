@@ -18,7 +18,7 @@
     state: stopped
 
 - name: Create "{{ haproxy_cfg }}"
-  ansible.builtin.template:
+  template:
     src: haproxy.j2
     dest: "{{ haproxy_cfg }}"
     owner: root

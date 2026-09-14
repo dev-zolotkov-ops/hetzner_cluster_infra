@@ -1,38 +1,33 @@
-Role Name
+# cluster
 =========
 
-A brief description of the role goes here.
+The role bootstraps the Kubernetes control plane and worker nodes with kubeadm, installs the Calico CNI plugin, and fetches the resulting cluster kubeconfig.
 
 Requirements
 ------------
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+Make sure that your inventory and vars (for the 'all' group) file are correct after autofill with Terraform. The inventory must define the `control_plane`, `workers`, `ingress`, and `haproxy` groups. Hosts must be prepared with the `preparing_hosts` role before this role runs.
 
 Role Variables
 --------------
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+kubeadm_token: "..."                    # token used by kubeadm to join nodes
+kube_pod_network_cidr: "10.244.0.0/16"  # pod network CIDR passed to kubeadm
+calico_version: "v3.31.0"               # Calico release to install
+calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml" # Calico manifest URL
+haproxy_public_ip: "..."                # public address of the Kubernetes API endpoint
 
 Dependencies
 ------------
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+The `preparing_hosts` role must run first and install kubelet, kubeadm, kubectl, and the required host networking configuration.
 
 Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+- hosts: all
+  become: true
+  roles:
+    - { role: cluster, tags: ['cluster'], when: enables_roles.cluster }
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
-
-License
--------
-
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+ansible-playbook k8s-install.yml --tags=cluster

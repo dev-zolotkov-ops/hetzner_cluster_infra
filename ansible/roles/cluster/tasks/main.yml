@@ -123,6 +123,24 @@
     mode: '0600'
   when: inventory_hostname == groups['control_plane'][0]
 
+- name: Wait for the Kubernetes API to become available
+  command: kubectl get nodes
+  register: kubernetes_api
+  retries: 12
+  delay: 5
+  until: kubernetes_api.rc == 0
+  changed_when: false
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Install the Calico CNI plugin
+  command:
+    argv:
+      - kubectl
+      - apply
+      - -f
+      - "{{ calico_manifest_url }}"
+  when: inventory_hostname == groups['control_plane'][0]
+
 - name: Fetch the cluster kubeconfig to the local machine
   fetch:
     src: /etc/kubernetes/admin.conf

@@ -53,7 +53,7 @@
   apt: name=python3-debian state=present 
 
 - name: Add Kubernetes APT repository
-  ansible.builtin.deb822_repository:
+  deb822_repository:
     name: kubernetes
     types: [deb]
     uris: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_repo_version }}/deb/"
@@ -76,7 +76,7 @@
     force: yes
 
 - name: Restart service kubelet
-  ansible.builtin.systemd_service:
+  systemd_service:
     state: restarted
     daemon_reload: true
     name: kubelet
