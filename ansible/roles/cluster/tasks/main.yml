@@ -1,0 +1,131 @@
+- name: reset old cluster
+  command:
+    argv:
+      - kubeadm 
+      - reset
+      - "-f"
+  when: "inventory_hostname not in groups['haproxy']"
+
+- name: Validate the cluster inventory
+  assert:
+    that:
+      - groups['control_plane'] | length > 0
+      - kubeadm_token is match('^[a-z0-9]+\\.[a-z0-9]+$')
+      - kube_pod_network_cidr is defined
+    fail_msg: "The control plane, kubeadm token, and pod network CIDR are required."
+  run_once: true
+
+- name: Initialize the first control-plane node
+  command:
+    argv:
+      - kubeadm
+      - init
+      - "--apiserver-advertise-address={{ hostvars[groups['control_plane'][0]].ip }}"
+      - "--control-plane-endpoint={{ haproxy_public_ip }}:6443"
+      - "--token={{ kubeadm_token }}"
+      - "--pod-network-cidr={{ kube_pod_network_cidr }}"
+    creates: /etc/kubernetes/admin.conf
+  when: inventory_hostname == groups['control_plane'][0]
+  register: kubeadm_init
+  no_log: true
+
+- name: Upload control-plane certificates
+  command: kubeadm init phase upload-certs --upload-certs
+  when: inventory_hostname == groups['control_plane'][0]
+  register: kubeadm_certs
+  changed_when: false
+  no_log: true
+
+- name: Calculate the cluster CA certificate hash
+  shell: >-
+    openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt
+    | openssl rsa -pubin -outform der 2>/dev/null
+    | sha256sum | awk '{print $1}'
+  when: inventory_hostname == groups['control_plane'][0]
+  register: kubeadm_ca_hash
+  changed_when: false
+
+- name: Extract the control-plane certificate key
+  set_fact:
+    kubeadm_certificate_key: "{{ kubeadm_certs.stdout_lines | select('match', '^[a-f0-9]{64}$') | list | last }}"
+  when: inventory_hostname == groups['control_plane'][0]
+  no_log: true
+
+# - name: Show groups dictionary
+#   debug:
+#     var: groups
+
+- name: Join additional control-plane nodes
+  command:
+    argv:
+      - kubeadm
+      - join
+      - "{{ haproxy_public_ip }}:6443"
+      - "--apiserver-advertise-address={{ ip }}"
+      - "--control-plane"
+      - "--token={{ kubeadm_token }}"
+      - "--certificate-key={{ hostvars[groups['control_plane'][0]].kubeadm_certs.stdout_lines[-1] }}"
+      - "--discovery-token-ca-cert-hash=sha256:{{ hostvars[groups['control_plane'][0]].kubeadm_ca_hash.stdout }}"
+    creates: /etc/kubernetes/kubelet.conf
+  when:
+    - inventory_hostname in groups['control_plane'][1:]
+    - groups['control_plane'] | length > 1
+  # no_log: true
+
+- name: Join worker and ingress nodes
+  command:
+    argv:
+      - kubeadm
+      - join
+      - "{{ haproxy_public_ip }}:6443"
+      - "--token={{ kubeadm_token }}"
+      - "--discovery-token-ca-cert-hash=sha256:{{ hostvars[groups['control_plane'][0]].kubeadm_ca_hash.stdout }}"
+    creates: /etc/kubernetes/kubelet.conf
+  when:
+    - "'workers' in group_names or 'ingress' in group_names"
+  no_log: true
+
+- name: Create the root kubeconfig directory
+  file:
+    path: /root/.kube
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Create the ubuntu kubeconfig directory
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0700'
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Install kubeconfig for root
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0600'
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Install kubeconfig for ubuntu
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: true
+    owner: ubuntu
+    group: ubuntu
+    mode: '0600'
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Fetch the cluster kubeconfig to the local machine
+  fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ playbook_dir }}/kubeconfig.yml"
+    flat: true
+  when: inventory_hostname == groups['control_plane'][0]

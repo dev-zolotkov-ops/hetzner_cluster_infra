@@ -1,0 +1,11 @@
+enables_roles:
+  preparing_hosts: true
+  cluster: true
+ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_common_args: '-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
+kubernetes_repo_version: "v1.36"
+kubernetes_package_version: "1.36.4-1.1"
+kubeadm_token: hdzu7y.rkuirbs2ihwjy0o9
+kube_pod_network_cidr: "10.244.0.0/16"
+haproxy_cfg: /etc/haproxy/haproxy.cfg
+haproxy_public_ip: 49.12.186.232

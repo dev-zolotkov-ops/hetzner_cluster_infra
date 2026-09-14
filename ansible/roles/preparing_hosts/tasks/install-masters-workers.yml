@@ -1,0 +1,96 @@
+- name: Create containerd config file
+  file:
+    path: "/etc/modules-load.d/containerd.conf"
+    state: "touch"
+
+- name: Add conf for containerd
+  blockinfile:
+    path: "/etc/modules-load.d/containerd.conf"
+    block: |
+      overlay
+      br_netfilter
+
+- name: modprobe
+  shell: |
+    sudo modprobe overlay
+    sudo modprobe br_netfilter
+
+
+- name: Set system configurations for Kubernetes networking
+  file:
+    path: "/etc/sysctl.d/99-kubernetes-cri.conf"
+    state: "touch"
+
+- name: Add conf for containerd
+  blockinfile:
+    path: "/etc/sysctl.d/99-kubernetes-cri.conf"
+    block: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+
+- name: Apply new settings
+  command: sudo sysctl --system
+
+- name: install containerd
+  shell: |
+    sudo apt-get update && sudo apt-get install -y containerd
+    sudo mkdir -p /etc/containerd
+    sudo containerd config default | sudo tee /etc/containerd/config.toml
+    sudo systemctl restart containerd
+
+- name: Remove swapfile from /etc/fstab
+  mount:
+    name: swap
+    fstype: swap
+    state: absent
+
+- name: Disable swap
+  command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- name: install python3-debian
+  apt: name=python3-debian state=present 
+
+- name: Add Kubernetes APT repository
+  ansible.builtin.deb822_repository:
+    name: kubernetes
+    types: [deb]
+    uris: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_repo_version }}/deb/"
+    signed_by: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_repo_version }}/deb/Release.key"
+    suites: [/]
+    state: present
+    enabled: yes
+
+- name: install kubelet
+  apt:
+    name: "kubelet={{ kubernetes_package_version }}"
+    state: present
+    update_cache: true
+    force: yes
+
+- name: install kubeadm
+  apt:
+    name: "kubeadm={{ kubernetes_package_version }}"
+    state: present
+    force: yes
+
+- name: Restart service kubelet
+  ansible.builtin.systemd_service:
+    state: restarted
+    daemon_reload: true
+    name: kubelet
+
+- name: install kubectl
+  apt:
+    name: "kubectl={{ kubernetes_package_version }}"
+    state: present
+    force: yes
+  when: "'control_plane' in group_names"
+
+- name: install helm
+  shell: |
+    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    chmod 700 get_helm.sh
+    ./get_helm.sh
+  when: "'control_plane' in group_names"

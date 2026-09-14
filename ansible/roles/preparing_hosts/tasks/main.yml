@@ -1,0 +1,8 @@
+- include_tasks: install-masters-workers.yml
+  when: >
+    'control_plane' in group_names or
+    'workers' in group_names or
+    'ingress' in group_names
+
+- include_tasks: install-haproxy.yml
+  when: "inventory_hostname in groups['haproxy']"
