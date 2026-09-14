@@ -11,15 +11,15 @@ Make sure that your inventory and vars (for the 'all' group) file are correct af
 Role Variables
 --------------
 
-kubeadm_token: "..."                    # token used by kubeadm to join nodes
+**kubeadm_token**: "..."                    # token used by kubeadm to join nodes
 
-kube_pod_network_cidr: "10.244.0.0/16"  # pod network CIDR passed to kubeadm
+**kube_pod_network_cidr**: "10.244.0.0/16"  # pod network CIDR passed to kubeadm
 
-calico_version: "v3.31.0"               # Calico release to install
+**calico_version**: "v3.31.0"               # Calico release to install
 
-calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml" # Calico manifest URL
+**calico_manifest_url**: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml" # Calico manifest URL
 
-haproxy_public_ip: "..."                # public address of the Kubernetes API endpoint
+**haproxy_public_ip**: "..."                # public address of the Kubernetes API endpoint
 
 Dependencies
 ------------

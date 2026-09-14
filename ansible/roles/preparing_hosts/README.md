@@ -11,9 +11,11 @@ Make sure that your inventory and vars (for 'all' group) file are correct after 
 Role Variables
 --------------
 
-kubernetes_repo_version: "v1.36"          # version of the K8S repository for installation K8S components from
-kubernetes_package_version: "1.36.4-1.1"  # kubelet, kubectl and kubeadm version
-haproxy_cfg: /etc/haproxy/haproxy.cfg     # haproxy config file path
+**kubernetes_repo_version**: "v1.36"          # version of the K8S repository for installation K8S components from
+
+**kubernetes_package_version**: "1.36.4-1.1"  # kubelet, kubectl and kubeadm version
+
+**haproxy_cfg**: /etc/haproxy/haproxy.cfg     # haproxy config file path
 
 Dependencies
 ------------
