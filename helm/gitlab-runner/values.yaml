@@ -1,0 +1,344 @@
+# namespace: ""
+image:
+  registry: registry.gitlab.com
+  image: gitlab-org/gitlab-runner
+  tag: alpine-v{{.Chart.AppVersion}}
+useTini: false
+imagePullPolicy: IfNotPresent
+# imagePullSecrets:
+#   - name: "image-pull-secret"
+# probeTimeoutSeconds: 4
+livenessProbe:
+  initialDelaySeconds: 60
+  periodSeconds: 60
+  successThreshold: 1
+  failureThreshold: 3
+  terminationGracePeriodSeconds: 30
+readinessProbe: {}
+#   initialDelaySeconds: 60
+#   periodSeconds: 60
+#   successThreshold: 1
+#   failureThreshold: 3
+# startupProbe:
+#   httpGet:
+#     path: /health/ready
+#     port: 9252
+#   periodSeconds: 10
+#   failureThreshold: 30
+startupProbe: {}
+replicas: 1
+revisionHistoryLimit: 10
+gitlabUrl: https://gitlab.skillbox.ru/
+runnerToken: "glrt-ti-kUNz2RHUWpJFzAGWx"
+#
+unregisterRunners: true
+terminationGracePeriodSeconds: 3600
+# certsSecretName:
+concurrent: 10
+shutdown_timeout: 0
+checkInterval: 3
+# logLevel:
+# logFormat:
+# sentryDsn:
+# connectionMaxAge: "15m"
+#
+#preEntrypointScript: |
+#  echo "hello"
+sessionServer:
+  enabled: false
+  # annotations: {}
+  # timeout: 1800
+  # internalPort: 8093
+  # externalPort: 9000
+  #In case sessionServer.serviceType is NodePort. If not defined, auto NodePort will be assigned.
+  # nodePort: 30093
+  # publicIP: ""
+  # loadBalancerSourceRanges:
+  #   - 1.2.3.4/32
+  #Valid values: ClusterIP, Headless, NodePort, LoadBalancer
+  serviceType: LoadBalancer
+  # externalTrafficPolicy:
+  # internalTrafficPolicy:
+  # if enabled, sessionServer.publicIP variable should be set to the host e.g. runner1.example.com
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    tls:
+      - secretName: gitlab-runner-session-server
+rbac:
+  create: true
+  generatedServiceAccountName: ""
+  rules:
+    - resources: ["events"]
+      verbs: ["list", "watch"]
+    # - resources: ["namespaces"]
+    #   verbs: ["create", "delete"]
+    - resources: ["pods"]
+      verbs: ["create","delete","get"]
+    - apiGroups: [""]
+      resources: ["pods/attach","pods/exec"]
+      verbs: ["get","create","patch","delete"]
+    - apiGroups: [""]
+      resources: ["pods/log"]
+      verbs: ["get","list"]
+    - resources: ["secrets"]
+      verbs: ["create","delete","get","update"]
+    - resources: ["serviceaccounts"]
+      verbs: ["get","create"]
+    - resources: ["services"]
+      verbs: ["create","get"]
+  clusterWideAccess: true
+  # serviceAccountName: default
+  serviceAccountAnnotations: {}
+  podSecurityPolicy:
+    enabled: false
+    resourceNames:
+      - gitlab-runner
+  imagePullSecrets: []
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  imagePullSecrets: []
+metrics:
+  enabled: false
+  portName: metrics
+  port: 9252
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    # interval: ""
+    # scheme: "http"
+    # tlsConfig: {}
+    # path: "/metrics"
+    # metricRelabelings: []
+  podMonitor:
+    enabled: false
+    namespace: ""
+    # interval: ""
+    # scheme: "http"
+    # tlsConfig: {}
+    # path: "/metrics"
+    # metricRelabelings: []
+service:
+  enabled: false
+  # labels: {}
+  # annotations: {}
+  # clusterIP: ""
+  # externalIPs: []
+  # loadBalancerIP: ""
+  # loadBalancerSourceRanges: []
+  type: ClusterIP
+  # metrics:
+  # nodePort: ""
+  # additionalPorts: []
+  # externalTrafficPolicy:
+  # internalTrafficPolicy:
+runners:
+  # jobNamespace: ""
+  # runner configuration, where the multi line string is evaluated as a
+  # template so you can specify helm values inside of it.
+  #
+  # tpl: https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function
+  # runner configuration: https://docs.gitlab.com/runner/configuration/advanced-configuration.html
+  config: |
+    [[runners]]
+      [runners.kubernetes]
+        namespace = "default"
+        image = "alpine"
+        privileged = true
+  configPath: ""
+  # configOverride: |
+  #  concurrent = 10
+  #  check_interval = 3
+  #  log_level = "info"
+
+  #  [[runners]]
+  #    name = "my-runner"
+  #    url = "https://gitlab.example.com/"
+  #    token = "glrt-xxxxxxxxxxxxxxxxxxxx"
+  #    executor = "kubernetes"
+  #    [runners.kubernetes]
+  #      namespace = "gitlab-runner"
+  #      image = "alpine"
+  executor: kubernetes
+  name: "dzolotkov_runner"
+  secret: gitlab-runner
+  cache: {}
+    # secretName: s3access
+    # secretName: gcsaccess
+    # secretName: google-application-credentials
+    # secretName: azureaccess
+    # disableGlobalCredentialsExport: false
+# schedulerName: "my-custom-scheduler"
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  privileged: false
+  capabilities:
+    drop: ["ALL"]
+strategy: {}
+  # rollingUpdate:
+  #   maxSurge: 1
+  #   maxUnavailable: 0
+  # type: RollingUpdate
+podSecurityContext:
+  runAsUser: 100
+  # runAsGroup: 65533
+  fsGroup: 65533
+  # supplementalGroups: [65533]
+  # runAsUser: 999
+  # fsGroup: 999
+resources: {}
+  # limits:
+  #   memory: 256Mi
+  #   cpu: 200m
+  #   ephemeral-storage: 512Mi
+  # requests:
+  #   memory: 128Mi
+  #   cpu: 100m
+  #   ephemeral-storage: 256Mi
+affinity: {}
+topologySpreadConstraints: {}
+  # Example: The gitlab runner should be evenly spread across zones
+  # - maxSkew: 1
+  #   topologyKey: zone
+  #   whenUnsatisfiable: DoNotSchedule
+  #   labelSelector:
+  #     matchLabels:
+  #       foo: bar
+runtimeClassName: ""
+  # Example: Once RuntimeClasses are configured for the cluster, you can specify it.
+  # runtimeClassName: myclass
+nodeSelector: {}
+  # Example: The gitlab runner manager should not run on spot instances so you can assign
+  # them to the regular worker nodes only.
+  # node-role.kubernetes.io/worker: "true"
+tolerations: []
+  # Example: Regular worker nodes may have a taint, thus you need to tolerate the taint
+  # when you assign the gitlab runner manager with nodeSelector or affinity to the nodes.
+  # - key: "node-role.kubernetes.io/worker"
+  #   operator: "Exists"
+# envVars:
+#   - name: RUNNER_EXECUTOR
+#     value: kubernetes
+extraEnv: {}
+  # CACHE_S3_SERVER_ADDRESS: s3.amazonaws.com
+  # CACHE_S3_BUCKET_NAME: runners-cache
+  # CACHE_S3_BUCKET_LOCATION: us-east-1
+  # CACHE_SHARED: true
+extraEnvFrom: {}
+  # CACHE_S3_ACCESS_KEY:
+  #   secretKeyRef:
+  #     name: s3access
+  #     key: accesskey
+  # CACHE_S3_SECRET_KEY:
+  #   secretKeyRef:
+  #     name: s3access
+  #     key: secretkey
+extraEnvFromRefs: []
+  # - secretRef:
+  #     name: gitlab-runner-cache-config
+hostAliases: []
+  # Example:
+  # - ip: "127.0.0.1"
+  #   hostnames:
+  #   - "foo.local"
+  #   - "bar.local"
+  # - ip: "10.1.2.3"
+  #   hostnames:
+  #   - "foo.remote"
+  #   - "bar.remote"
+deploymentAnnotations: {}
+  # Example:
+  # downscaler/uptime: <my_uptime_period>
+deploymentLabels: {}
+  # Example:
+  # owner.team: <my_cool_team>
+  # owner.team: "{{ .Values.team }}"
+  # tags.{{ .Values.tag }}/env: "{{ .Values.environment }}"
+deploymentInitContainers: []
+  # Example
+  # - name: init-container
+  #   image: busybox:latest
+  #   command: ['sh', '-c', 'sleep 5']
+deploymentLifecycle: {}
+  # Example
+  # preStop:
+  #   exec:
+  #     command: ["/bin/sh", "-c", "echo 'shutting down'"]
+#hostname: my-gitlab-runner
+podAnnotations: {}
+  # Example:
+  # iam.amazonaws.com/role: <my_role_arn>
+podLabels: {}
+  # Example:
+  # owner.team: <my_cool_team>
+  # owner.team: "{{ .Values.team }}"
+  # tags.{{ .Values.tag }}/env: "{{ .Values.environment }}"
+# podDisruptionBudget: {}
+#   maxUnavailable: 1
+# hpa: {}
+#   minReplicas: 1
+#   maxReplicas: 10
+#   metrics:
+#   - type: Pods
+#     pods:
+#       metricName: gitlab_runner_jobs
+#       targetAverageValue: 400m
+priorityClassName: ""
+secrets: []
+  # Example:
+  # - name: my-secret
+  # - name: myOtherSecret
+  #   items:
+  #     - key: key_one
+  #       path: path_one
+# automountServiceAccountToken: false
+configMaps: {}
+configMapLabels: {}
+  # Example:
+  # owner.team: <my_cool_team>
+  # owner.team: "{{ .Values.team }}"
+  # tags.{{ .Values.tag }}/env: "{{ .Values.environment }}"
+volumeMounts: []
+  # Example:
+  # - name: my-volume
+  #   mountPath: /mount/path
+volumes: []
+  # Example:
+  # - name: my-volume
+  #   persistentVolumeClaim:
+  #     claimName: my-pvc
+extraObjects: []
+# - apiVersion: external-secrets.io/v1
+#   kind: ExternalSecret
+#   metadata:
+#     name: '{{ include "gitlab-runner.secret" . }}'
+#   spec:
+#     refreshInterval: 1h
+#     secretStoreRef:
+#       kind: SecretStore
+#       name: my-secret-store
+#     target:
+#       template:
+#         data:
+#           runner-registration-token: "" # need to leave as an empty string for compatibility reasons
+#           runner-token: "{{`{{ .runnerToken }}`}}"
+#     dataFrom:
+#     - extract:
+#         key: my-secret-store-secret
+#  - name: docker
+#    image: docker:20.10-dind
+#    securityContext:
+#      privileged: true
+#    volumeMounts:
+#      - mountPath: /var/run/
+#        name: dind-socket
+#    lifecycle:
+#      postStart:
+#        exec:
+#          command: [ "sh", "-c", "until docker info; do sleep 1; done;" ]
+extraContainers: []
