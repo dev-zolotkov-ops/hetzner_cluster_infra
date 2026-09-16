@@ -27,8 +27,21 @@ locals {
                     - 1.1.1.1
                     - 8.8.8.8
     runcmd:
-      - [netplan, generate]
-      - [netplan, apply]
+      - |
+        until ip link show enp7s0 >/dev/null 2>&1; do
+          sleep 2
+        done
+
+      - |
+        until ip addr show enp7s0 | grep -q "PRIVATE_IP"; do
+          sleep 2
+        done
+
+      - |
+        until ip route | grep -E '^default .*192.168.0.1'; do
+          netplan apply
+          sleep 2
+        done
     users:
       - name: ubuntu
         gecos: Ubuntu User
