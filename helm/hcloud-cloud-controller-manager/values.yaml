@@ -119,6 +119,9 @@ resources:
   requests:
     cpu: 100m
     memory: 50Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
 
 # Pod-level security context for the hccm Pod.
 # See https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

@@ -253,20 +253,20 @@ controller:
   ##
   resources:
     csiAttacher:
-      limits: {}
-      requests: {}
+      limits: {cpu: 100m, memory: 128Mi}
+      requests: {cpu: 20m, memory: 64Mi}
     csiResizer:
-      limits: {}
-      requests: {}
+      limits: {cpu: 50m, memory: 64Mi}
+      requests: {cpu: 10m, memory: 32Mi}
     csiProvisioner:
-      limits: {}
-      requests: {}
+      limits: {cpu: 100m, memory: 128Mi}
+      requests: {cpu: 20m, memory: 64Mi}
     livenessProbe:
-      limits: {}
-      requests: {}
+      limits: {cpu: 20m, memory: 32Mi}
+      requests: {cpu: 5m, memory: 16Mi}
     hcloudCSIDriver:
-      limits: {}
-      requests: {}
+      limits: {cpu: 100m, memory: 128Mi}
+      requests: {cpu: 20m, memory: 64Mi}
 
   ## @param controller.extraArgs.csiProvisioner Array with extra arguments for the csi-provisioner container
   ## e.g:
@@ -537,14 +537,14 @@ node:
   ##
   resources:
     csiNodeDriverRegistrar:
-      limits: {}
-      requests: {}
+      limits: {cpu: 20m, memory: 32Mi}
+      requests: {cpu: 5m, memory: 16Mi}
     livenessProbe:
-      limits: {}
-      requests: {}
+      limits: {cpu: 20m, memory: 32Mi}
+      requests: {cpu: 5m, memory: 16Mi}
     hcloudCSIDriver:
-      limits: {}
-      requests: {}
+      limits: {cpu: 100m, memory: 64Mi}
+      requests: {cpu: 20m, memory: 32Mi}
 
   ## Configure Pods Security Context
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
