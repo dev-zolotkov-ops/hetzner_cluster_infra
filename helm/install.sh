@@ -1,5 +1,8 @@
 #!/bin/bash
 set -euo pipefail
+
+# Istio control plane and ingress gateway
+istioctl install -f ./istio/istio-operator.yaml -y
 # Cloud controllers
 helm upgrade --install -n kube-system hcloud-csi ./hcloud-csi -f ./hcloud-csi/values.yaml --wait --timeout 10m
 helm upgrade --install -n kube-system hccm ./hcloud-cloud-controller-manager -f ./hcloud-cloud-controller-manager/values.yaml --wait --timeout 10m

@@ -1,0 +1,36 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  namespace: istio-system
+spec:
+  # This configuration is for Istio 1.30.4, the version used by this repository.
+  profile: default
+  components:
+    pilot:
+      enabled: true
+      k8s:
+        replicas: 2
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          replicas: 2
+          service:
+            type: LoadBalancer
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+    egressGateways:
+      - name: istio-egressgateway
+        enabled: false
