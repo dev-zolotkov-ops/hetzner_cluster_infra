@@ -1,6 +1,90 @@
+global:
+  rbac:
+    create: true
+  imageRegistry: ""
+  imagePullSecrets: []
+
+defaultRules:
+  create: false
+  rules: {}
+
+windowsMonitoring:
+  enabled: false
+
+kubelet:
+  enabled: false
+  serviceMonitor:
+    cAdvisor: false
+    probes: false
+
+kubeScheduler:
+  enabled: false
+  serviceMonitor:
+    resource:
+      enabled: false
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeDns:
+  enabled: false
+kubeApiServer:
+  enabled: false
+coreDns:
+  enabled: false
+thanosRuler:
+  enabled: false
+  extraSecret:
+    data: {}
+
+nodeExporter:
+  enabled: true
+
 alertmanager:
   enabled: true
+  servicePerReplica:
+    enabled: false
+  serviceMonitor:
+    selfMonitor: true
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: true
+  service:
+    enabled: true
+    ipDualStack:
+      enabled: false
+  secret:
+    annotations: {}
+  ingress:
+    enabled: false
+    servicePort: 9093
+  route:
+    main:
+      enabled: false
+  podDisruptionBudget:
+    enabled: false
+  networkPolicy:
+    enabled: false
+  extraSecret:
+    data: {}
+  verticalPodAutoscaler:
+    enabled: false
   alertmanagerSpec:
+    routePrefix: /
+    externalUrl: http://kube-prometheus-stack-alertmanager.monitoring.svc
+    paused: false
+    logFormat: logfmt
+    logLevel: info
+    retention: 120h
+    portName: http-web
+    hostNetwork: false
+    automountServiceAccountToken: true
+    alertmanagerConfigSelector: {}
+    alertmanagerConfigNamespaceSelector: {}
     replicas: 2
     resources:
       requests:
@@ -12,6 +96,8 @@ alertmanager:
 
 grafana:
   enabled: true
+  operator:
+    dashboardsConfigMapRefEnabled: false
   admin:
     existingSecret: grafana-admin-credentials
     userKey: admin-user
@@ -53,7 +139,54 @@ prometheus-node-exporter:
 
 prometheus:
   enabled: true
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: true
+  servicePerReplica:
+    enabled: false
+  thanosService:
+    enabled: false
+  thanosServiceExternal:
+    enabled: false
+  thanosIngress:
+    enabled: false
+  ingress:
+    enabled: false
+    servicePort: 9090
+  route:
+    main:
+      enabled: false
+  podDisruptionBudget:
+    enabled: false
+  networkPolicy:
+    enabled: false
+  extraSecret:
+    data: {}
+  service:
+    enabled: true
+    ipDualStack:
+      enabled: false
+  serviceMonitor:
+    selfMonitor: true
+  verticalPodAutoscaler:
+    enabled: false
   prometheusSpec:
+    routePrefix: /
+    externalUrl: http://kube-prometheus-stack-prometheus.monitoring.svc
+    paused: false
+    logLevel: info
+    logFormat: logfmt
+    listenLocal: false
+    enableOTLPReceiver: false
+    enableAdminAPI: false
+    portName: http-web
+    hostNetwork: false
+    alertingEndpoints:
+      - apiVersion: v2
+    additionalScrapeConfigsSecret:
+      enabled: false
     replicas: 2
     retention: 10d
     resources:
@@ -70,5 +203,144 @@ prometheus:
           accessModes:
             - ReadWriteOnce
           resources:
-            requests:
-              storage: 30Gi
+      requests:
+        storage: 30Gi
+
+# Required by the chart templates; keep the operator enabled for the
+# Prometheus and Alertmanager custom resources below.
+prometheusOperator:
+  enabled: true
+  livenessProbe:
+    enabled: true
+  readinessProbe:
+    enabled: true
+  tls:
+    enabled: true
+    tlsMinVersion: VersionTLS13
+    internalPort: 10250
+  admissionWebhooks:
+    enabled: true
+    failurePolicy: ""
+    timeoutSeconds: 10
+    annotations: {}
+    namespaceSelector: {}
+    objectSelector: {}
+    matchConditions: []
+    mutatingWebhookConfiguration:
+      annotations: {}
+    validatingWebhookConfiguration:
+      annotations: {}
+    deployment:
+      enabled: false
+    patch:
+      enabled: true
+      image:
+        registry: ghcr.io
+        repository: jkroepke/kube-webhook-certgen
+        tag: 1.8.8
+        pullPolicy: IfNotPresent
+      resources: {}
+      priorityClassName: ""
+      ttlSecondsAfterFinished: 60
+      annotations: {}
+      podAnnotations: {}
+      nodeSelector: {}
+      affinity: {}
+      tolerations: []
+      securityContext:
+        runAsGroup: 2000
+        runAsNonRoot: true
+        runAsUser: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccount:
+        create: true
+        annotations: {}
+        automountServiceAccountToken: true
+    certManager:
+      enabled: false
+  namespaces: {}
+  denyNamespaces: []
+  networkPolicy:
+    enabled: false
+    flavor: kubernetes
+  serviceAccount:
+    create: true
+    name: ""
+    automountServiceAccountToken: true
+    annotations: {}
+  service:
+    annotations: {}
+    labels: {}
+    clusterIP: ""
+    ipDualStack:
+      enabled: false
+    type: ClusterIP
+  labels: {}
+  annotations: {}
+  podLabels: {}
+  podAnnotations: {}
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  kubeletService:
+    enabled: true
+    namespace: kube-system
+    selector: ""
+    name: ""
+  kubeletEndpointsEnabled: true
+  kubeletEndpointSliceEnabled: false
+  extraArgs: []
+  serviceMonitor:
+    selfMonitor: true
+    additionalLabels: {}
+    interval: ""
+    scrapeTimeout: ""
+    metricRelabelings: []
+    relabelings: []
+  resources: {}
+  env:
+    GOGC: "30"
+  hostNetwork: false
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  dnsConfig: {}
+  securityContext:
+    fsGroup: 65534
+    runAsGroup: 65534
+    runAsNonRoot: true
+    runAsUser: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  image:
+    registry: quay.io
+    repository: prometheus-operator/prometheus-operator
+    tag: ""
+    sha: ""
+    pullPolicy: IfNotPresent
+  prometheusConfigReloader:
+    image:
+      registry: quay.io
+      repository: prometheus-operator/prometheus-config-reloader
+      tag: ""
+      sha: ""
+    resources: {}
+  thanosImage:
+    registry: quay.io
+    repository: thanos/thanos
+    tag: v0.42.4
+    sha: ""
+  prometheusInstanceSelector: ""
+  alertmanagerInstanceSelector: ""
+  thanosRulerInstanceSelector: ""
+  secretFieldSelector: "type!=kubernetes.io/dockercfg,type!=helm.sh/release.v1"
+  featureGates: {}
+  automountServiceAccountToken: true
+  extraVolumes: []
+  extraVolumeMounts: []

@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+required_istio_version="1.30.4"
+istioctl_version="$(istioctl version --remote=false 2>/dev/null || istioctl version 2>/dev/null)"
+if [[ "$istioctl_version" != *"${required_istio_version}"* ]]; then
+  printf 'istioctl %s is required (detected: %s)\n' "$required_istio_version" "$istioctl_version" >&2
+  exit 1
+fi
+
 # Istio control plane and ingress gateway
 istioctl install -f ./istio/istio-operator.yaml -y
 # Cloud controllers
