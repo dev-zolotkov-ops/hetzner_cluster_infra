@@ -115,6 +115,12 @@ crds:
   # (Certificates, Issuers, ...) will be removed too by the garbage collector.
   keep: true
 
+# ACME account and issuer configuration.
+acme:
+  # Set through the install script's ACME_EMAIL environment variable.
+  email: "d.zolotkov90@gmail.com"
+  enabled: true
+
 # +docs:section=Controller
 
 # The number of replicas of the cert-manager controller to run.

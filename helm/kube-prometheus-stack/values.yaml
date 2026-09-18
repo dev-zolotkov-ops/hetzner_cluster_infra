@@ -55,6 +55,8 @@ alertmanager:
     automountServiceAccountToken: true
   service:
     enabled: true
+    port: 9093
+    targetPort: http-web
     ipDualStack:
       enabled: false
   secret:
@@ -166,6 +168,8 @@ prometheus:
     data: {}
   service:
     enabled: true
+    port: 9090
+    targetPort: http-web
     ipDualStack:
       enabled: false
   serviceMonitor:
@@ -183,8 +187,6 @@ prometheus:
     enableAdminAPI: false
     portName: http-web
     hostNetwork: false
-    alertingEndpoints:
-      - apiVersion: v2
     additionalScrapeConfigsSecret:
       enabled: false
     replicas: 2

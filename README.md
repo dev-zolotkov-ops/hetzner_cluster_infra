@@ -11,7 +11,7 @@ Required credentials and cluster prerequisites confirmed by the manifests:
 - `HCLOUD_TOKEN` for Terraform and a Kubernetes Secret named `hcloud` with key `token` for hcloud CSI and CCM. Optional Robot credentials use `robot-user` and `robot-password`.
 - Kubernetes Secret `grafana-admin-credentials` in namespace `monitoring`, with keys `admin-user` and `admin-password`.
 - Hetzner CCM must be running before LoadBalancer services; hcloud CSI creates the `hcloud-volumes` StorageClass used by Grafana and Prometheus.
-- External DNS is configured for the AWS provider, so the corresponding AWS/DNS provider credentials and DNS access must be available in the cluster environment. No credential values belong in this repository.
+- External DNS uses Cloudflare DNS. Create the Kubernetes Secret `cloudflare_external_dns` in namespace `ingress` with key `api-token`. cert-manager's production Let's Encrypt DNS-01 solver uses the Secret `cloudflare_cert_manager` in namespace `ingress` with key `api-token`. Do not store token values in this repository.
 
 Run these checks without deploying:
 
@@ -27,6 +27,7 @@ kubectl get nodes
 kubectl get storageclass
 kubectl -n kube-system get secret hcloud
 kubectl -n monitoring get secret grafana-admin-credentials
+kubectl -n ingress get secret cloudflare_external_dns cloudflare_cert_manager
 ```
 
 The Helm charts and dependencies are vendored here; `helm repo update` is not required for `helm/install.sh`.
@@ -48,4 +49,5 @@ The Helm charts and dependencies are vendored here; `helm repo update` is not re
 
 ```bash
     cd ../helm
+    export ACME_EMAIL="<your_acme_account_email>"
     ./install.sh

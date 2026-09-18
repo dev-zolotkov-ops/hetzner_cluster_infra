@@ -3,6 +3,9 @@
     "helm-values": {
       "additionalProperties": false,
       "properties": {
+        "acme": {
+          "$ref": "#/$defs/helm-values.acme"
+        },
         "acmesolver": {
           "$ref": "#/$defs/helm-values.acmesolver"
         },
@@ -185,6 +188,18 @@
         },
         "webhook": {
           "$ref": "#/$defs/helm-values.webhook"
+        }
+      },
+      "type": "object"
+    },
+    "helm-values.acme": {
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
         }
       },
       "type": "object"
