@@ -3,6 +3,8 @@ locals {
     masters           = values(local.masters)
     workers           = values(local.workers)
     ingress           = values(local.ingress)
+    worker_ids        = { for name, server in hcloud_server.workers : server.name => server.id }
+    ingress_ids       = { for name, server in hcloud_server.ingress : server.name => server.id }
     haproxy_public_ip = hcloud_server.haproxy.ipv4_address
   })
 }

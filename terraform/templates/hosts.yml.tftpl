@@ -18,6 +18,7 @@ all:
           ansible_port: ${3030 + length(masters) + index}
           ansible_user: ubuntu
           ip: ${node.private_ip}
+          hcloud_server_id: ${worker_ids[node.name]}
 %{ endfor ~}
     ingress:
       hosts:
@@ -27,6 +28,7 @@ all:
           ansible_port: ${3030 + length(masters) + length(workers) + index}
           ansible_user: ubuntu
           ip: ${node.private_ip}
+          hcloud_server_id: ${ingress_ids[node.name]}
 %{ endfor ~}
     haproxy:
       hosts:

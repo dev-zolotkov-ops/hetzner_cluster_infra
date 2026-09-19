@@ -28,6 +28,7 @@ spec:
             load-balancer.hetzner.cloud/location: fsn1
             load-balancer.hetzner.cloud/type: lb11
             external-dns.kubernetes.io/hostname: final-work-k8s.raisa44.men
+            load-balancer.hetzner.cloud/use-private-ip: true
           resources:
             requests:
               cpu: 100m

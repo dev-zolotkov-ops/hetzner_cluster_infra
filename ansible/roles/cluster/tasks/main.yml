@@ -72,6 +72,19 @@
     - groups['control_plane'] | length > 1
   # no_log: true
 
+- name: Configure external cloud provider for worker and ingress kubelets
+  lineinfile:
+    path: /etc/default/kubelet
+    regexp: '^KUBELET_EXTRA_ARGS='
+    line: 'KUBELET_EXTRA_ARGS="--cloud-provider=external --provider-id=hcloud://{{ hcloud_server_id }}"'
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - "'workers' in group_names or 'ingress' in group_names"
+    - hcloud_server_id is defined
+
 - name: Join worker and ingress nodes
   command:
     argv:
@@ -147,4 +160,4 @@
     dest: "/home/raisa/.kube/kubeconfig.yml"
     flat: true
   when: inventory_hostname == groups['control_plane'][0]
-  tags: [ kubeconfig ] 
+  tags: [ kubeconfig ]
