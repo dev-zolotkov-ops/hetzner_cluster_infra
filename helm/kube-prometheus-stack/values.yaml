@@ -205,8 +205,8 @@ prometheus:
           accessModes:
             - ReadWriteOnce
           resources:
-      requests:
-        storage: 30Gi
+            requests:
+              storage: 30Gi
 
 # Required by the chart templates; keep the operator enabled for the
 # Prometheus and Alertmanager custom resources below.

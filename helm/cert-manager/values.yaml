@@ -119,7 +119,7 @@ crds:
 acme:
   # Set through the install script's ACME_EMAIL environment variable.
   email: "d.zolotkov90@gmail.com"
-  enabled: true
+  enabled: false
 
 # +docs:section=Controller
 

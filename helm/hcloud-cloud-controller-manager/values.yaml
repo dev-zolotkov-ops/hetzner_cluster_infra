@@ -50,6 +50,11 @@ env:
   #   value: "/etc/hetzner/token"
   # to disable reading the token from the secret you have to disable the original env var:
   # HCLOUD_TOKEN: null
+  HCLOUD_NETWORK:
+    valueFrom:
+      secretKeyRef:
+        name: hcloud
+        key: network
 
   HCLOUD_TOKEN:
     valueFrom:
@@ -63,6 +68,7 @@ env:
         name: hcloud
         key: robot-user
         optional: true
+
   ROBOT_PASSWORD:
     valueFrom:
       secretKeyRef:
@@ -104,7 +110,7 @@ nameOverride: ~
 
 networking:
   # If enabled, hcloud-ccm will be deployed with networking support.
-  enabled: false
+  enabled: true
   # If networking is enabled, clusterCIDR must match the PodCIDR subnet your cluster has been configured with.
   # The default "10.244.0.0/16" assumes you're using Flannel with default configuration.
   clusterCIDR: 10.244.0.0/16
