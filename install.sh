@@ -9,9 +9,6 @@ cd "$SCRIPT_DIR"
 
 kubectl apply -f ${MANEFESTS_DIR}/ns_secrets_roles.yml
 
-# CSI
-helm upgrade --install -n kube-system hcloud-csi ${HELM_DIR}/hcloud-csi -f ${HELM_DIR}/hcloud-csi/values.yaml --wait --timeout 10m
-
 kubectl patch secret hcloud -n kube-system \
   --type='merge' \
   -p "{\"data\":{\"network\":\"$(hcloud network list -o json | \
@@ -20,6 +17,9 @@ kubectl patch secret hcloud -n kube-system \
 
 # HCCM
 helm upgrade --install -n kube-system hccm ${HELM_DIR}/hcloud-cloud-controller-manager -f ${HELM_DIR}/hcloud-cloud-controller-manager/values.yaml --wait --timeout 10m
+
+# CSI
+helm upgrade --install -n kube-system hcloud-csi ${HELM_DIR}/hcloud-csi -f ${HELM_DIR}/hcloud-csi/values.yaml --wait --timeout 10m
 
 # Istio control plane and ingress gateway
 required_istio_version="1.30"
