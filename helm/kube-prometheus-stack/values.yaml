@@ -177,6 +177,11 @@ prometheus:
   verticalPodAutoscaler:
     enabled: false
   prometheusSpec:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
     routePrefix: /
     externalUrl: http://kube-prometheus-stack-prometheus.monitoring.svc
     paused: false

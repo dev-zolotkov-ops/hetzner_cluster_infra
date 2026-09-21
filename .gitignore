@@ -4,3 +4,4 @@
 kubeconfig.yml
 hosts.yml
 **/vars.yml
+ca.crt
