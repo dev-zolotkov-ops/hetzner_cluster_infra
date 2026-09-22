@@ -1,0 +1,7 @@
+# Values for the test runner release. Layer over values.yaml.
+gitlabUrl: https://gitlab.skillbox.ru/
+runnerToken: "glrt-AZaNrMTyLWrcvB9qPuXp"
+runners:
+  name: "dzolotkov_test_runner"
+  tags: "dzolotkov_test_runner"
+  secret: "gitlab-runner-test"

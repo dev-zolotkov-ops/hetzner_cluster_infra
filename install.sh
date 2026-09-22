@@ -43,8 +43,12 @@ helm upgrade cert-manager ${HELM_DIR}/cert-manager -n ingress -f ${HELM_DIR}/cer
 
 # monitoring
 helm upgrade --install kube-prometheus-stack ${HELM_DIR}/kube-prometheus-stack --version 91.4.1 -n monitoring --create-namespace -f ${HELM_DIR}/kube-prometheus-stack/values.yaml --wait --timeout 15m
+
 # CI/CD
-helm upgrade --install gitlab-runner ${HELM_DIR}/gitlab-runner -n gitlab-runner --create-namespace -f ${HELM_DIR}/gitlab-runner/values.yaml --wait --timeout 10m
+helm upgrade --install build-runner ${HELM_DIR}/gitlab-runner -n gitlab-runner --create-namespace -f ${HELM_DIR}/gitlab-runner/values.yaml
+helm upgrade --install deploy-runner ${HELM_DIR}/gitlab-runner -n gitlab-runner -f ${HELM_DIR}/gitlab-runner/values.yaml -f ${HELM_DIR}/gitlab-runner/deploy-values.yaml
+helm upgrade --install test-runner ${HELM_DIR}/gitlab-runner/ -n gitlab-runner -f ${HELM_DIR}/gitlab-runner/values.yaml -f ${HELM_DIR}/gitlab-runner/test-values.yaml
+
 # Test
 kubectl get po -A | grep -E "gitlab|hcloud|hccm|external-dns|cert-manager|istio|prometheus|grafana"
 

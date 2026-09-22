@@ -1,0 +1,7 @@
+# Values for the deployment runner release. Layer over values.yaml.
+gitlabUrl: https://gitlab.skillbox.ru/
+runnerToken: "glrt-toBDc8tb6sfNvqyeasRy"
+runners:
+  name: "dzolotkov_deploy_runner"
+  tags: "dzolotkov_deploy_runner"
+  secret: "gitlab-runner-deploy"

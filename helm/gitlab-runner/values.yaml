@@ -164,7 +164,7 @@ runners:
   #      image = "alpine"
   executor: kubernetes
   name: "dzolotkov_runner"
-  secret: gitlab-runner
+  secret: gitlab-runner-build
   cache: {}
     # secretName: s3access
     # secretName: gcsaccess
