@@ -21,7 +21,7 @@ resource "hcloud_server" "workers" {
   for_each    = local.workers
   name        = each.value.name
   image       = "ubuntu-24.04"
-  server_type = "cx23"
+  server_type = "cx43"
   location    = each.value.location
   public_net {
     ipv4_enabled = false

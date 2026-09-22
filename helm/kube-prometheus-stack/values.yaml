@@ -122,6 +122,12 @@ kubeStateMetrics:
   enabled: true
 
 kube-state-metrics:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
   resources:
     requests:
       cpu: 25m
@@ -251,9 +257,13 @@ prometheusOperator:
       ttlSecondsAfterFinished: 60
       annotations: {}
       podAnnotations: {}
-      nodeSelector: {}
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
       affinity: {}
-      tolerations: []
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       securityContext:
         runAsGroup: 2000
         runAsNonRoot: true
@@ -309,8 +319,12 @@ prometheusOperator:
   env:
     GOGC: "30"
   hostNetwork: false
-  nodeSelector: {}
-  tolerations: []
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
   affinity: {}
   dnsConfig: {}
   securityContext:

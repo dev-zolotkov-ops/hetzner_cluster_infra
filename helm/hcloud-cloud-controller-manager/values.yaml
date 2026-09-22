@@ -159,11 +159,15 @@ strategy: {}
 #     maxSurge: 1
 #     maxUnavailable: 1
 
-additionalTolerations: []
+additionalTolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
 
 # nodeSelector:
 #   node-role.kubernetes.io/control-plane: ""
-nodeSelector: {}
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
 
 # Set the affinity for pods. (Only works with kind=Deployment)
 affinity: {}

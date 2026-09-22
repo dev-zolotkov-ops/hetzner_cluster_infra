@@ -521,6 +521,7 @@ hostAliases: []
 # +docs:property
 nodeSelector:
   kubernetes.io/os: linux
+  node-role.kubernetes.io/control-plane: ""
 
 # Enables default network policies for cert-manager.
 # This provides a way for you to restrict network traffic
@@ -620,7 +621,10 @@ runtimeClassName: ""
 #     operator: Equal
 #     value: master
 #     effect: NoSchedule
-tolerations: []
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
 
 # A list of Kubernetes TopologySpreadConstraints, if required. For more information, see [Topology spread constraint v1 core](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#topologyspreadconstraint-v1-core
 #
@@ -986,6 +990,7 @@ webhook:
   # +docs:property
   nodeSelector:
     kubernetes.io/os: linux
+    node-role.kubernetes.io/control-plane: ""
 
   # A Kubernetes Affinity, if required. For more information, see [Affinity v1 core](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#affinity-v1-core).
   #
@@ -1016,7 +1021,10 @@ webhook:
   #     operator: Equal
   #     value: master
   #     effect: NoSchedule
-  tolerations: []
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
 
   # A list of Kubernetes TopologySpreadConstraints, if required. For more information, see [Topology spread constraint v1 core](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#topologyspreadconstraint-v1-core).
   #
@@ -1384,6 +1392,7 @@ cainjector:
   # +docs:property
   nodeSelector:
     kubernetes.io/os: linux
+    node-role.kubernetes.io/control-plane: ""
 
   # A Kubernetes Affinity, if required. For more information, see [Affinity v1 core](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#affinity-v1-core).
   #
@@ -1414,7 +1423,10 @@ cainjector:
   #     operator: Equal
   #     value: master
   #     effect: NoSchedule
-  tolerations: []
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
 
   # A list of Kubernetes TopologySpreadConstraints, if required. For more information, see [Topology spread constraint v1 core](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#topologyspreadconstraint-v1-core).
   #
@@ -1648,6 +1660,7 @@ startupapicheck:
   # +docs:property
   nodeSelector:
     kubernetes.io/os: linux
+    node-role.kubernetes.io/control-plane: ""
 
   # A Kubernetes Affinity, if required. For more information, see [Affinity v1 core](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#affinity-v1-core).
   # For example:
@@ -1677,7 +1690,10 @@ startupapicheck:
   #     operator: Equal
   #     value: master
   #     effect: NoSchedule
-  tolerations: []
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
 
   # Optional additional labels to add to the startupapicheck Pods.
   podLabels: {}
