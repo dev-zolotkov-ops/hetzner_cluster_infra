@@ -51,3 +51,59 @@ The Helm charts and dependencies are vendored here; `helm repo update` is not re
     cd ../helm
     export ACME_EMAIL="<your_acme_account_email>"
     ./install.sh
+```
+
+Monitoring is installed by the final Helm command in `install.sh`. Before running it, create the Grafana credentials Secret without putting the values in this repository:
+
+```bash
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n monitoring create secret generic grafana-admin-credentials \
+  --from-literal=admin-user='<admin-user>' \
+  --from-literal=admin-password='<admin-password>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+The `kube-prometheus-stack` release deploys Prometheus and Grafana, stores Prometheus data for 10 days on a 30 GiB `hcloud-volumes` PVC, and stores Grafana data on a 10 GiB `hcloud-volumes` PVC. Kubelet and cAdvisor ServiceMonitor endpoints are enabled for node and container CPU/memory metrics, including `container_cpu_usage_seconds_total` and `container_memory_working_set_bytes`; probe metrics remain disabled. The only bundled default recording rules enabled are the pod/container CPU and memory groups used by the Kubernetes dashboards, producing `node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate` and `node_namespace_pod_container:container_memory_working_set_bytes`. Prometheus and Grafana remain on worker nodes; kube-state-metrics and the operator admission jobs use the control-plane placement configured in the values file.
+
+Grafana's bundled kube-prometheus-stack datasource provisioning creates the default Prometheus datasource pointing at the in-cluster Prometheus service. No separate datasource ConfigMap is required.
+
+Grafana is published at `https://grafana.final-work-k8s.raisa44.men` through the existing Cloudflare ExternalDNS -> Hetzner LoadBalancer -> Istio ingress path. The repository applies `monitoring/grafana-virtualservice.yaml` after the monitoring release and ExternalDNS watches Istio VirtualServices. Update the separately managed `gateway_cert.yml`; do not create a second Gateway or Certificate. The existing Certificate behind `istio-system/final-work-k8s-tls` must include the Grafana hostname in `spec.dnsNames`, or HTTPS certificate validation will fail. Add the hostname to the existing resources, preserving their other fields:
+
+```yaml
+# Existing Gateway, HTTPS server
+spec:
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        credentialName: final-work-k8s-tls
+      hosts:
+        - final-work-k8s.raisa44.men
+        - grafana.final-work-k8s.raisa44.men
+
+# Existing Certificate
+spec:
+  dnsNames:
+    - final-work-k8s.raisa44.men
+    - grafana.final-work-k8s.raisa44.men
+  secretName: final-work-k8s-tls
+```
+
+If HTTP-to-HTTPS redirect is controlled by the same Gateway, its HTTP redirect server must also accept `grafana.final-work-k8s.raisa44.men` (or use a matching wildcard host), consistent with the existing redirect policy.
+
+Verify the deployment and routing with:
+
+```bash
+helm -n monitoring status kube-prometheus-stack
+kubectl -n monitoring get pods,svc,pvc,prometheus,alertmanager
+kubectl -n monitoring get servicemonitor kube-prometheus-stack-kubelet -o yaml
+kubectl -n monitoring get virtualservice grafana -o yaml
+kubectl -n monitoring get secret grafana-admin-credentials
+kubectl -n istio-system get secret final-work-k8s-tls
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+curl -I https://grafana.final-work-k8s.raisa44.men
+```
+
+If the separately managed Gateway does not yet contain the Grafana host, add `grafana.final-work-k8s.raisa44.men` to its HTTPS server hosts before applying the VirtualService. Confirm DNS and certificate readiness with `dig grafana.final-work-k8s.raisa44.men` and `kubectl get certificate -A`.

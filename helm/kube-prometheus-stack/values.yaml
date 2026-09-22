@@ -5,17 +5,30 @@ global:
   imagePullSecrets: []
 
 defaultRules:
-  create: false
-  rules: {}
+  create: true
+  rules:
+    k8sContainerCpuUsageSecondsTotal: true
+    k8sContainerMemoryWorkingSetBytes: true
+  additionalRuleLabels: {}
+  additionalRuleGroupLabels: {}
 
 windowsMonitoring:
   enabled: false
 
 kubelet:
-  enabled: false
+  enabled: true
+  namespace: kube-system
   serviceMonitor:
-    cAdvisor: false
+    enabled: true
+    kubelet: true
+    cAdvisor: true
     probes: false
+    resource: false
+    interval: 30s
+    cAdvisorInterval: 30s
+
+kubernetesServiceMonitors:
+  enabled: true
 
 kubeScheduler:
   enabled: false
