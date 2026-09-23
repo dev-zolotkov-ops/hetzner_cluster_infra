@@ -22,6 +22,10 @@ kubelet:
     enabled: true
     kubelet: true
     cAdvisor: true
+    https: true
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
     probes: false
     resource: false
     interval: 30s
@@ -54,6 +58,13 @@ thanosRuler:
 
 nodeExporter:
   enabled: true
+  operatingSystems:
+    linux:
+      enabled: true
+    darwin:
+      enabled: false
+    aix:
+      enabled: false
 
 alertmanager:
   enabled: true
@@ -111,6 +122,34 @@ alertmanager:
 
 grafana:
   enabled: true
+  defaultDashboardsEnabled: false
+  defaultDashboardsEditable: false
+  defaultDashboardsInterval: 30s
+  customDashboards:
+    enabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: monitoring
+      resource: configmap
+      label: grafana_dashboard
+      labelValue: "1"
+      multicluster:
+        global:
+          enabled: false
+        etcd:
+          enabled: false
+    datasources:
+      enabled: true
+      searchNamespace: monitoring
+      resource: configmap
+      defaultDatasourceEnabled: true
+      name: Prometheus
+      uid: prometheus
+      isDefaultDatasource: true
+      url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+      alertmanager:
+        enabled: false
   operator:
     dashboardsConfigMapRefEnabled: false
   admin:
@@ -139,6 +178,9 @@ kubeStateMetrics:
   enabled: true
 
 kube-state-metrics:
+  prometheus:
+    monitor:
+      enabled: true
   nodeSelector:
     node-role.kubernetes.io/control-plane: ""
   tolerations:
@@ -154,6 +196,9 @@ kube-state-metrics:
       memory: 128Mi
 
 prometheus-node-exporter:
+  prometheus:
+    monitor:
+      enabled: true
   resources:
     requests:
       cpu: 50m

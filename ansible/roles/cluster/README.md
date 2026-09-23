@@ -3,6 +3,25 @@
 
 The role bootstraps the Kubernetes control plane and worker nodes with kubeadm, installs the Calico CNI plugin, and fetches the resulting cluster kubeconfig.
 
+Kubelet serving certificates
+----------------------------
+
+After kubeadm initialization or node joins, the role persistently enables `serverTLSBootstrap: true` in `/var/lib/kubelet/config.yaml` and restarts kubelet only when that setting changes. This causes each kubelet to submit a `kubernetes.io/kubelet-serving` CSR. This repository has no CSR approval controller or automatic approval logic; review and approve requests manually only after verifying the node identity and requested DNS/IP SANs:
+
+```bash
+kubectl get csr -o wide
+kubectl describe csr <csr-name>
+kubectl certificate approve <csr-name>
+kubectl get csr <csr-name> -o wide
+```
+
+Verify that the approved request has username `system:node:<node-name>`, the expected node-serving SANs, and usages appropriate for a server certificate before approving it. Then verify kubelet HTTPS metrics and Prometheus targets:
+
+```bash
+kubectl get csr -o jsonpath='{range .items[?(@.spec.signerName=="kubernetes.io/kubelet-serving")]}{.metadata.name}{"\t"}{.status.conditions[*].type}{"\n"}{end}'
+kubectl -n monitoring get servicemonitor kube-prometheus-stack-kubelet -o yaml
+```
+
 Requirements
 ------------
 

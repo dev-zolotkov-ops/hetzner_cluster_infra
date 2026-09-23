@@ -1,0 +1,25 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {"type":"timeseries","title":"CPU usage per pod","gridPos":{"h":8,"w":12,"x":0,"y":0},"fieldConfig":{"defaults":{"unit":"cores"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum by (exported_namespace, pod) (rate(container_cpu_usage_seconds_total{job=\"kubelet\",pod!=\"\",container!=\"\",container!=\"POD\",image!=\"\",exported_namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval]))","legendFormat":"{{exported_namespace}} / {{pod}}"}]},
+    {"type":"timeseries","title":"Memory working set per pod","gridPos":{"h":8,"w":12,"x":12,"y":0},"fieldConfig":{"defaults":{"unit":"bytesIEC"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum by (exported_namespace, pod) (container_memory_working_set_bytes{job=\"kubelet\",pod!=\"\",container!=\"\",container!=\"POD\",image!=\"\",exported_namespace=~\"$namespace\",pod=~\"$pod\"})","legendFormat":"{{exported_namespace}} / {{pod}}"}]},
+    {"type":"table","title":"Current CPU per pod","gridPos":{"h":8,"w":12,"x":0,"y":8},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"topk(100, sum by (exported_namespace, pod) (rate(container_cpu_usage_seconds_total{job=\"kubelet\",pod!=\"\",container!=\"\",container!=\"POD\",image!=\"\",exported_namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])))","instant":true,"format":"table"}]},
+    {"type":"table","title":"Current memory per pod","gridPos":{"h":8,"w":12,"x":12,"y":8},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"topk(100, sum by (exported_namespace, pod) (container_memory_working_set_bytes{job=\"kubelet\",pod!=\"\",container!=\"\",container!=\"POD\",image!=\"\",exported_namespace=~\"$namespace\",pod=~\"$pod\"}))","instant":true,"format":"table"}]},
+    {"type":"timeseries","title":"Pod restarts","gridPos":{"h":8,"w":24,"x":0,"y":16},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum by (namespace, pod) (kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$pod\"})","legendFormat":"{{namespace}} / {{pod}}"}]}
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["kubernetes", "pods", "resources"],
+  "templating": {"list": [
+    {"name":"namespace","label":"Namespace","type":"query","datasource":{"type":"prometheus","uid":"prometheus"},"multi":true,"includeAll":true,"allValue":".*","query":"label_values(kube_pod_info, namespace)","current":{"text":"All","value":["$__all"]}},
+    {"name":"pod","label":"Pod","type":"query","datasource":{"type":"prometheus","uid":"prometheus"},"multi":true,"includeAll":true,"allValue":".*","query":"label_values(kube_pod_info{namespace=~\"$namespace\"}, pod)","current":{"text":"All","value":["$__all"]}}
+  ]},
+  "time": {"from":"now-6h","to":"now"},
+  "timepicker": {},
+  "title": "Kubernetes / Pod Resources",
+  "uid": "kubernetes-pod-resources",
+  "version": 3
+}

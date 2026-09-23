@@ -55,6 +55,8 @@ The Helm charts and dependencies are vendored here; `helm repo update` is not re
 
 Monitoring is installed by the final Helm command in `install.sh`. Before running it, create the Grafana credentials Secret without putting the values in this repository:
 
+Task 3 monitoring verification, dashboard inventory, metrics rationale, artifacts, and deployment troubleshooting are documented in [`docs/task-3-monitoring.md`](docs/task-3-monitoring.md).
+
 ```bash
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n monitoring create secret generic grafana-admin-credentials \
@@ -65,7 +67,7 @@ kubectl -n monitoring create secret generic grafana-admin-credentials \
 
 The `kube-prometheus-stack` release deploys Prometheus and Grafana, stores Prometheus data for 10 days on a 30 GiB `hcloud-volumes` PVC, and stores Grafana data on a 10 GiB `hcloud-volumes` PVC. Kubelet and cAdvisor ServiceMonitor endpoints are enabled for node and container CPU/memory metrics, including `container_cpu_usage_seconds_total` and `container_memory_working_set_bytes`; probe metrics remain disabled. The only bundled default recording rules enabled are the pod/container CPU and memory groups used by the Kubernetes dashboards, producing `node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate` and `node_namespace_pod_container:container_memory_working_set_bytes`. Prometheus and Grafana remain on worker nodes; kube-state-metrics and the operator admission jobs use the control-plane placement configured in the values file.
 
-Grafana's bundled kube-prometheus-stack datasource provisioning creates the default Prometheus datasource pointing at the in-cluster Prometheus service. No separate datasource ConfigMap is required.
+The chart provisions the default Prometheus datasource automatically through Grafana's datasource sidecar, pointing at the in-cluster Prometheus service. No manual datasource ConfigMap is required.
 
 Grafana is published at `https://grafana.final-work-k8s.raisa44.men` through the existing Cloudflare ExternalDNS -> Hetzner LoadBalancer -> Istio ingress path. The Grafana VirtualService is rendered by the `kube-prometheus-stack` Helm release, and ExternalDNS watches Istio VirtualServices. The shared Gateway and Certificate are repo-owned in `ingress/gateway_cert.yml`; the install script applies that manifest before the monitoring Helm release. The Gateway and Certificate already include both public hostnames:
 

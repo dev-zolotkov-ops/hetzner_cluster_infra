@@ -1,0 +1,15 @@
+{{- if and .Values.grafana.enabled .Values.grafana.customDashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kube-prometheus-stack.fullname" . }}-grafana-custom-dashboards
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ tpl .Values.grafana.sidecar.dashboards.label . }}: {{ tpl .Values.grafana.sidecar.dashboards.labelValue . | quote }}
+    {{- include "kube-prometheus-stack.labels" . | nindent 4 }}
+data:
+  kubernetes-pod-resources.json: |-
+{{ .Files.Get "dashboards/kubernetes-pod-resources.json" | indent 4 }}
+  kubernetes-cluster-overview.json: |-
+{{ .Files.Get "dashboards/kubernetes-cluster-overview.json" | indent 4 }}
+{{- end }}

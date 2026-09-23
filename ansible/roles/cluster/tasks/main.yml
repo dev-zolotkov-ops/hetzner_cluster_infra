@@ -5,6 +5,7 @@
       - reset
       - "-f"
   when: "inventory_hostname not in groups['haproxy']"
+  tags: cluster_reset
 
 - name: Validate the cluster inventory
   assert:
@@ -97,6 +98,18 @@
   when:
     - "'workers' in group_names or 'ingress' in group_names"
   no_log: true
+
+- name: Enable kubelet serving certificate bootstrap
+  lineinfile:
+    path: /var/lib/kubelet/config.yaml
+    regexp: '^serverTLSBootstrap:'
+    line: 'serverTLSBootstrap: true'
+    insertafter: EOF
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname not in groups['haproxy']
+  notify: Restart kubelet after configuration change
 
 - name: Create the root kubeconfig directory
   file:
