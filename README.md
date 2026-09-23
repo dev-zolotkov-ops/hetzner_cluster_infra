@@ -67,10 +67,10 @@ The `kube-prometheus-stack` release deploys Prometheus and Grafana, stores Prome
 
 Grafana's bundled kube-prometheus-stack datasource provisioning creates the default Prometheus datasource pointing at the in-cluster Prometheus service. No separate datasource ConfigMap is required.
 
-Grafana is published at `https://grafana.final-work-k8s.raisa44.men` through the existing Cloudflare ExternalDNS -> Hetzner LoadBalancer -> Istio ingress path. The repository applies `monitoring/grafana-virtualservice.yaml` after the monitoring release and ExternalDNS watches Istio VirtualServices. Update the separately managed `gateway_cert.yml`; do not create a second Gateway or Certificate. The existing Certificate behind `istio-system/final-work-k8s-tls` must include the Grafana hostname in `spec.dnsNames`, or HTTPS certificate validation will fail. Add the hostname to the existing resources, preserving their other fields:
+Grafana is published at `https://grafana.final-work-k8s.raisa44.men` through the existing Cloudflare ExternalDNS -> Hetzner LoadBalancer -> Istio ingress path. The Grafana VirtualService is rendered by the `kube-prometheus-stack` Helm release, and ExternalDNS watches Istio VirtualServices. The shared Gateway and Certificate are repo-owned in `ingress/gateway_cert.yml`; the install script applies that manifest before the monitoring Helm release. The Gateway and Certificate already include both public hostnames:
 
 ```yaml
-# Existing Gateway, HTTPS server
+# Repo-owned Gateway, HTTPS server
 spec:
   servers:
     - port:
@@ -83,7 +83,7 @@ spec:
         - final-work-k8s.raisa44.men
         - grafana.final-work-k8s.raisa44.men
 
-# Existing Certificate
+# Repo-owned Certificate
 spec:
   dnsNames:
     - final-work-k8s.raisa44.men
@@ -91,7 +91,7 @@ spec:
   secretName: final-work-k8s-tls
 ```
 
-If HTTP-to-HTTPS redirect is controlled by the same Gateway, its HTTP redirect server must also accept `grafana.final-work-k8s.raisa44.men` (or use a matching wildcard host), consistent with the existing redirect policy.
+The HTTP server uses the wildcard host and redirects to HTTPS. Do not create a second Gateway, Certificate, or Grafana VirtualService.
 
 Verify the deployment and routing with:
 
@@ -106,4 +106,4 @@ kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
 curl -I https://grafana.final-work-k8s.raisa44.men
 ```
 
-If the separately managed Gateway does not yet contain the Grafana host, add `grafana.final-work-k8s.raisa44.men` to its HTTPS server hosts before applying the VirtualService. Confirm DNS and certificate readiness with `dig grafana.final-work-k8s.raisa44.men` and `kubectl get certificate -A`.
+Confirm DNS and certificate readiness with `dig grafana.final-work-k8s.raisa44.men` and `kubectl get certificate -A`.

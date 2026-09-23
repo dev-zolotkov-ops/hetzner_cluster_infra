@@ -38,12 +38,11 @@ helm upgrade --install cert-manager ${HELM_DIR}/cert-manager -n ingress --create
 # : "${ACME_EMAIL:?Set ACME_EMAIL to the ACME account email before deploying}"
 helm upgrade cert-manager ${HELM_DIR}/cert-manager -n ingress -f ${HELM_DIR}/cert-manager/values.yaml --set crds.enabled=true --set acme.enabled=true --wait --timeout 10m
 
-kubectl apply -f ${MANEFESTS_DIR}/gateway_cert.yml
+kubectl apply -f ${SCRIPT_DIR}/ingress/gateway_cert.yml
 
 
 # monitoring
 helm upgrade --install kube-prometheus-stack ${HELM_DIR}/kube-prometheus-stack --version 91.4.1 -n monitoring --create-namespace -f ${HELM_DIR}/kube-prometheus-stack/values.yaml --wait --timeout 15m
-kubectl apply -f ${SCRIPT_DIR}/monitoring/grafana-virtualservice.yaml
 
 # CI/CD
 helm upgrade --install build-runner ${HELM_DIR}/gitlab-runner -n gitlab-runner --create-namespace -f ${HELM_DIR}/gitlab-runner/values.yaml
