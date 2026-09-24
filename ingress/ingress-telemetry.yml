@@ -1,0 +1,21 @@
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: ingressgateway-request-path
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  metrics:
+    - providers:
+        - name: prometheus
+      overrides:
+        - match:
+            metric: REQUEST_COUNT
+            mode: CLIENT_AND_SERVER
+          tagOverrides:
+            # Raw URL paths can create high-cardinality Prometheus series.
+            request_path:
+              operation: UPSERT
+              value: request.url_path

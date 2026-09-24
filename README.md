@@ -2,6 +2,18 @@
 
 You can create and bootstrap HA cluster with Terraform, Ansible and Helm tools in Hetzner using this repo.
 
+The cluster bootstrap deploys `postfinance/kubelet-csr-approver` with a pinned
+image. It auto-approves only `kubernetes.io/kubelet-serving` CSRs after the
+controller's node identity, hostname, private IP and expiration checks; it also
+handles kubelet serving certificate rotation. Verify it with:
+
+```bash
+kubectl -n kube-system get deployment kubelet-csr-approver
+kubectl get csr -o wide
+kubectl -n kube-system logs deployment/kubelet-csr-approver
+kubectl get nodes -o wide
+```
+
 # Prerequisites And Pre-Deploy Checks
 
 Required locally: Terraform (Hetzner provider lockfile is present), Ansible, `kubectl`, Helm, and `istioctl` **1.30.4**. The cluster is prepared by the Ansible roles in this repository; no external Kubespray checkout is used. Configure a kubeconfig and select the target context before running Helm.
@@ -109,3 +121,35 @@ curl -I https://grafana.final-work-k8s.raisa44.men
 ```
 
 Confirm DNS and certificate readiness with `dig grafana.final-work-k8s.raisa44.men` and `kubectl get certificate -A`.
+
+## Task 3: бонус ingress HTTP
+
+Бонус мониторинга выполнен: Grafana содержит dashboard `Istio / Ingress HTTP`. Prometheus скрапит метрики ingress gateway через Helm-managed PodMonitor на pod-порту `http-envoy-prom` (`15090`), а Telemetry в `ingress/ingress-telemetry.yml` добавляет raw `request_path` из `request.url_path`. Общий Gateway и Certificate в `ingress/gateway_cert.yml` и VirtualServices в Helm charts не изменяются.
+
+Метрики Istio являются агрегированными счётчиками Prometheus, а не логом каждого HTTP-запроса. Для запросов, маршрутизированных ingress gateway, используйте source-side серии без двойного подсчёта:
+
+```promql
+sum by (request_path, response_code) (
+  rate(istio_requests_total{reporter="source",source_workload="istio-ingressgateway",source_workload_namespace="istio-system",request_path!="",request_path=~".*",response_code!=""}[5m])
+)
+```
+
+Проверка:
+
+```bash
+kubectl -n istio-system get telemetry ingressgateway-request-path -o yaml
+kubectl -n monitoring get podmonitor istio-ingressgateway -o yaml
+kubectl -n monitoring get prometheus kube-prometheus-stack-prometheus -o yaml
+kubectl -n monitoring get servicemonitor,podmonitor
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+```
+
+Проверьте target и labels командами:
+
+```bash
+curl -s http://127.0.0.1:9090/api/v1/targets | jq '.data.activeTargets[] | select(.scrapeUrl | test(":15090/stats/prometheus$")) | {health, scrapeUrl, lastError}'
+curl -sk -o /dev/null -w '%{http_code}\n' https://final-work-k8s.raisa44.men/
+curl -sG http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count by (request_path, response_code) (istio_requests_total{reporter="source",source_workload="istio-ingressgateway",source_workload_namespace="istio-system",request_path!="",request_path=~".*",response_code!=""})' | jq .
+```
+
+Переменная `$path` используется только внутри Grafana dashboard и не является частью PromQL для API. Raw пути могут иметь высокую кардинальность, например из-за UUID или ID в URL; это увеличивает число рядов и стоимость хранения. Перед эксплуатацией с большим трафиком проверьте фактические значения и нормализуйте маршруты при необходимости.

@@ -12,4 +12,6 @@ data:
 {{ .Files.Get "dashboards/kubernetes-pod-resources.json" | indent 4 }}
   kubernetes-cluster-overview.json: |-
 {{ .Files.Get "dashboards/kubernetes-cluster-overview.json" | indent 4 }}
+  istio-ingress-http.json: |-
+{{ .Files.Get "dashboards/istio-ingress-http.json" | indent 4 }}
 {{- end }}

@@ -17,11 +17,13 @@ Prometheus scrapes kubelet/cAdvisor, node-exporter, kube-state-metrics, and the 
 | `node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate` | CPU recording-rule series | Fast Kubernetes dashboard queries |
 | `node_namespace_pod_container:container_memory_working_set_bytes` | Memory recording-rule series | Fast Kubernetes dashboard queries |
 | `up` and `prometheus_target_interval_length_seconds` | Scrape/target health | Platform monitoring validation |
+| `istio_requests_total` | Aggregated ingress HTTP requests by path and response code | Istio ingress dashboard and HTTP error analysis |
 
 ## Dashboards
 
 - `Kubernetes / Pod Resources`: six-hour default range, 30-second refresh, namespace and pod multi-select/all variables, per-pod CPU and memory time series, current CPU and memory tables, and restart counts.
 - `Kubernetes / Cluster Overview`: ready/running/non-running pod counts, cluster CPU and memory, namespace-filtered restarts, and scrape target health. Built-in kube-prometheus-stack dashboards are disabled to avoid unsupported or partially empty views.
+- `Istio / Ingress HTTP`: seven panels for selected-range requests, current RPS, 4xx percentage, 5xx percentage, RPS by path, RPS by response code, and requests aggregated by path and response code.
 
 ## Verification
 
@@ -68,6 +70,59 @@ Artifact checklist:
 - Capture `Kubernetes / Pod Resources` with several hours selected, visible CPU/memory data, and namespace filtering demonstrated.
 - Capture `Kubernetes / Cluster Overview` with several hours selected, showing node/pod counts, cluster CPU/memory, restarts, and target health.
 - Capture datasource health and Prometheus targets showing healthy kubelet/cAdvisor and kube-state-metrics targets.
+- Capture `Istio / Ingress HTTP` showing selected-range requests, current total RPS, 4xx percentage, 5xx percentage, RPS by request path, RPS by response code, and the path/response-code table.
 - Retain this document with the dashboard screenshots; never include credential values.
 
 If dashboards are blank, confirm the Grafana pod has both sidecars, the dashboard ConfigMap has `grafana_dashboard: "1"`, the datasource ConfigMap has `grafana_datasource: "1"`, and sidecar logs show it was discovered. Check the datasource URL/UID, Prometheus targets, and that the selected namespace/pod variables are not empty. A newly deployed cluster cannot provide several hours of history until it has collected that history; use the default six-hour range after waiting.
+
+## Бонус: HTTP-наблюдаемость Istio ingress
+
+Бонус выполнен. `ingress/ingress-telemetry.yml` применяет Telemetry только к workload с меткой `istio: ingressgateway`. Для Prometheus добавляется raw `request_path` из `request.url_path` с режимом `CLIENT_AND_SERVER`. `helm/kube-prometheus-stack` создаёт PodMonitor в namespace `monitoring`, который скрапит pod-порт `http-envoy-prom` на `15090` по пути `/stats/prometheus`; ServiceMonitor не используется, поскольку Service Istio не публикует этот порт.
+
+Метрики Istio являются агрегированными монотонными счётчиками, а не журналом отдельных запросов. Панель `Istio / Ingress HTTP` строится по `istio_requests_total` и использует только source-side серии ingress gateway, чтобы не считать один запрос дважды:
+
+```promql
+sum by (request_path, response_code) (
+  rate(istio_requests_total{
+    reporter="source",
+    source_workload="istio-ingressgateway",
+    source_workload_namespace="istio-system",
+    request_path!="",
+    request_path=~"$path",
+    response_code!=""
+  }[5m])
+)
+```
+
+Переменная `$path` существует только внутри Grafana dashboard. В Prometheus API и shell-запросах ниже используется regex `.*`, то есть все непустые пути.
+
+Проверка после установки:
+
+```bash
+kubectl -n istio-system get telemetry ingressgateway-request-path -o yaml
+kubectl -n monitoring get podmonitor istio-ingressgateway -o yaml
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+```
+
+В другом терминале проверьте target `istio-ingressgateway` и scrape URL с `:15090/stats/prometheus`:
+
+```bash
+curl -s http://127.0.0.1:9090/api/v1/targets | jq '.data.activeTargets[] | select(.scrapeUrl | test(":15090/stats/prometheus$")) | {health, scrapeUrl, lastError}'
+```
+
+Сгенерируйте HTTPS-трафик через общий Gateway:
+
+```bash
+curl -sk -o /dev/null -w '%{http_code}\n' https://final-work-k8s.raisa44.men/
+curl -sk -o /dev/null -w '%{http_code}\n' https://grafana.final-work-k8s.raisa44.men/
+```
+
+Выполните PromQL через Prometheus API без Grafana-переменной:
+
+```bash
+curl -sG http://127.0.0.1:9090/api/v1/query \
+  --data-urlencode 'query=count by (reporter, source_workload, source_workload_namespace, request_path, response_code) (istio_requests_total{reporter="source",source_workload="istio-ingressgateway",source_workload_namespace="istio-system",request_path!="",request_path=~".*",response_code!=""})' \
+  | jq .
+```
+
+Сырые URL-пути могут содержать идентификаторы, UUID и другие значения с высокой кардинальностью. Это увеличивает число временных рядов и расход памяти/диска Prometheus. Перед включением большого внешнего трафика следует проверить фактические значения `request_path` и при необходимости нормализовать маршруты или ограничить набор путей.

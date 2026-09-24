@@ -38,7 +38,8 @@ helm upgrade --install cert-manager ${HELM_DIR}/cert-manager -n ingress --create
 # : "${ACME_EMAIL:?Set ACME_EMAIL to the ACME account email before deploying}"
 helm upgrade cert-manager ${HELM_DIR}/cert-manager -n ingress -f ${HELM_DIR}/cert-manager/values.yaml --set crds.enabled=true --set acme.enabled=true --wait --timeout 10m
 
-kubectl apply -f ${SCRIPT_DIR}/ingress/gateway_cert.yml
+kubectl apply -f ${SCRIPT_DIR}/ingress/gateway_cert.yml \
+  -f ${SCRIPT_DIR}/ingress/ingress-telemetry.yml
 
 
 # monitoring

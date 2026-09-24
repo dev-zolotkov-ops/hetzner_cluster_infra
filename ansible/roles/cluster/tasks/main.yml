@@ -167,6 +167,64 @@
       - "{{ calico_manifest_url }}"
   when: inventory_hostname == groups['control_plane'][0]
 
+- name: Install the kubelet serving CSR approver manifest
+  copy:
+    src: kubelet-csr-approver.yml
+    dest: /root/kubelet-csr-approver.yml
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Apply the kubelet serving CSR approver
+  command:
+    argv:
+      - kubectl
+      - --kubeconfig=/etc/kubernetes/admin.conf
+      - apply
+      - --filename=/root/kubelet-csr-approver.yml
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Wait for the kubelet serving CSR approver rollout
+  command:
+    argv:
+      - kubectl
+      - --kubeconfig=/etc/kubernetes/admin.conf
+      - rollout
+      - status
+      - deployment/kubelet-csr-approver
+      - --namespace=kube-system
+      - --timeout=180s
+  register: kubelet_csr_approver_rollout
+  retries: 3
+  delay: 10
+  until: kubelet_csr_approver_rollout.rc == 0
+  changed_when: false
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: Restart kubelets after the approver is ready
+  meta: flush_handlers
+
+- name: Wait for the kubelet serving certificate
+  wait_for:
+    path: /var/lib/kubelet/pki/kubelet-server-current.pem
+    timeout: 300
+  when: inventory_hostname not in groups['haproxy']
+
+- name: Check for pending kubelet serving CSRs
+  shell: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf get csr
+    -o jsonpath='{range .items[?(@.spec.signerName=="kubernetes.io/kubelet-serving")]}{.metadata.name}{"\t"}{range .status.conditions[*]}{.type}{","}{end}{"\n"}{end}'
+    | awk -F '\t' '$2 == "" { pending = 1; print } END { exit pending }'
+  args:
+    executable: /bin/bash
+  register: pending_kubelet_serving_csrs
+  changed_when: false
+  retries: 12
+  delay: 5
+  until: pending_kubelet_serving_csrs.rc == 0
+  when: inventory_hostname == groups['control_plane'][0]
+
 - name: Fetch the cluster kubeconfig to the local machine
   fetch:
     src: /etc/kubernetes/admin.conf
