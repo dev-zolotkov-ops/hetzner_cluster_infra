@@ -2,7 +2,7 @@
 
 ## Flow and Published Endpoint
 
-Grafana is published at [https://grafana.final-work-k8s.raisa44.men](https://grafana.final-work-k8s.raisa44.men). The flow is HTTPS Gateway and certificate in `ingress/gateway_cert.yml` -> Helm-owned Grafana VirtualService -> `kube-prometheus-stack-grafana` Service -> Grafana. Grafana's provisioned `Prometheus` datasource uses UID `prometheus` and `http://kube-prometheus-stack-prometheus.monitoring.svc:9090`.
+Grafana is published at [https://grafana.raisa44.men](https://grafana.raisa44.men). The flow is HTTPS Gateway and certificate in `ingress/gateway_cert.yml` -> Helm-owned Grafana VirtualService -> `kube-prometheus-stack-grafana` Service -> Grafana. Grafana's provisioned `Prometheus` datasource uses UID `prometheus` and `http://kube-prometheus-stack-prometheus.monitoring.svc:9090`.
 
 Prometheus scrapes kubelet/cAdvisor, node-exporter, kube-state-metrics, and the enabled ServiceMonitors. Prometheus retains 10 days on its 30Gi PVC; Grafana retains provisioned state on its 10Gi PVC.
 
@@ -114,7 +114,7 @@ curl -s http://127.0.0.1:9090/api/v1/targets | jq '.data.activeTargets[] | selec
 
 ```bash
 curl -sk -o /dev/null -w '%{http_code}\n' https://final-work-k8s.raisa44.men/
-curl -sk -o /dev/null -w '%{http_code}\n' https://grafana.final-work-k8s.raisa44.men/
+curl -sk -o /dev/null -w '%{http_code}\n' https://grafana.raisa44.men/
 ```
 
 Выполните PromQL через Prometheus API без Grafana-переменной:

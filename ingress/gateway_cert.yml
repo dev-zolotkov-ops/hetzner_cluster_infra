@@ -22,7 +22,7 @@ spec:
         protocol: HTTPS
       hosts:
         - final-work-k8s.raisa44.men
-        - grafana.final-work-k8s.raisa44.men
+        - grafana.raisa44.men
       tls:
         mode: SIMPLE
         credentialName: final-work-k8s-tls
@@ -40,4 +40,4 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - final-work-k8s.raisa44.men
-    - grafana.final-work-k8s.raisa44.men
+    - grafana.raisa44.men

@@ -2,6 +2,28 @@
 
 You can create and bootstrap HA cluster with Terraform, Ansible and Helm tools in Hetzner using this repo.
 
+The public origin is Cloudflare-only: `cloudflare-proxied: true` is required,
+and `ingress/cloudflare-origin-policy.yml` blocks direct origin traffic that is
+not from Cloudflare CIDRs. The Hetzner LoadBalancer and Istio ingress gateway
+both use PROXY protocol so Istio can evaluate the original client source IP.
+Cloudflare CIDRs must be periodically checked against the official IPv4 and
+IPv6 lists.
+
+Verify the policy and gateway configuration with:
+
+```bash
+kubectl -n istio-system get authorizationpolicy cloudflare-origin-only
+kubectl -n istio-system get service istio-ingressgateway -o yaml
+kubectl -n istio-system rollout status deployment/istio-ingressgateway --timeout=5m
+curl -I https://final-work-k8s.raisa44.men/
+curl -k -I --resolve final-work-k8s.raisa44.men:443:<LB_IP> https://final-work-k8s.raisa44.men/
+```
+
+The hostname request is expected to use the Cloudflare proxy. The direct
+`curl --resolve` request to the LoadBalancer should receive `403`.
+The policy still permits internal Prometheus scraping on port `15090`; this
+port is not exposed by the LoadBalancer and does not open application traffic.
+
 The cluster bootstrap deploys `postfinance/kubelet-csr-approver` with a pinned
 image. It auto-approves only `kubernetes.io/kubelet-serving` CSRs after the
 controller's node identity, hostname, private IP and expiration checks; it also
@@ -81,7 +103,7 @@ The `kube-prometheus-stack` release deploys Prometheus and Grafana, stores Prome
 
 The chart provisions the default Prometheus datasource automatically through Grafana's datasource sidecar, pointing at the in-cluster Prometheus service. No manual datasource ConfigMap is required.
 
-Grafana is published at `https://grafana.final-work-k8s.raisa44.men` through the existing Cloudflare ExternalDNS -> Hetzner LoadBalancer -> Istio ingress path. The Grafana VirtualService is rendered by the `kube-prometheus-stack` Helm release, and ExternalDNS watches Istio VirtualServices. The shared Gateway and Certificate are repo-owned in `ingress/gateway_cert.yml`; the install script applies that manifest before the monitoring Helm release. The Gateway and Certificate already include both public hostnames:
+Grafana is published at `https://grafana.raisa44.men` through the existing Cloudflare ExternalDNS -> Hetzner LoadBalancer -> Istio ingress path. The Grafana VirtualService is rendered by the `kube-prometheus-stack` Helm release, and ExternalDNS watches Istio VirtualServices. The shared Gateway and Certificate are repo-owned in `ingress/gateway_cert.yml`; the install script applies that manifest before the monitoring Helm release. The Gateway and Certificate already include both public hostnames:
 
 ```yaml
 # Repo-owned Gateway, HTTPS server
@@ -95,13 +117,13 @@ spec:
         credentialName: final-work-k8s-tls
       hosts:
         - final-work-k8s.raisa44.men
-        - grafana.final-work-k8s.raisa44.men
+        - grafana.raisa44.men
 
 # Repo-owned Certificate
 spec:
   dnsNames:
     - final-work-k8s.raisa44.men
-    - grafana.final-work-k8s.raisa44.men
+    - grafana.raisa44.men
   secretName: final-work-k8s-tls
 ```
 
@@ -117,10 +139,10 @@ kubectl -n monitoring get virtualservice grafana -o yaml
 kubectl -n monitoring get secret grafana-admin-credentials
 kubectl -n istio-system get secret final-work-k8s-tls
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
-curl -I https://grafana.final-work-k8s.raisa44.men
+curl -I https://grafana.raisa44.men
 ```
 
-Confirm DNS and certificate readiness with `dig grafana.final-work-k8s.raisa44.men` and `kubectl get certificate -A`.
+Confirm DNS and certificate readiness with `dig grafana.raisa44.men` and `kubectl get certificate -A`.
 
 ## Task 3: бонус ingress HTTP
 
@@ -152,4 +174,4 @@ curl -sk -o /dev/null -w '%{http_code}\n' https://final-work-k8s.raisa44.men/
 curl -sG http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count by (request_path, response_code) (istio_requests_total{reporter="source",source_workload="istio-ingressgateway",source_workload_namespace="istio-system",request_path!="",request_path=~".*",response_code!=""})' | jq .
 ```
 
-Переменная `$path` используется только внутри Grafana dashboard и не является частью PromQL для API. Raw пути могут иметь высокую кардинальность, например из-за UUID или ID в URL; это увеличивает число рядов и стоимость хранения. Перед эксплуатацией с большим трафиком проверьте фактические значения и нормализуйте маршруты при необходимости.
+Переменная `$path` используется только внутри Grafana dashboard и не является частью PromQL для API. Raw пути могут иметь высокую кардинальность, например из-за UUID или ID в URL; это увеличивает число рядов и стоимость хранения. Перед эксплуатацией с большим трафиком необходимо проверить фактические значения и нормализовать маршруты при необходимости.

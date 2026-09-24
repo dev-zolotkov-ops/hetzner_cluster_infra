@@ -160,7 +160,7 @@ grafana:
     enabled: false
   virtualService:
     enabled: true
-    host: grafana.final-work-k8s.raisa44.men
+    host: grafana.raisa44.men
     gateway: istio-system/main-gateway
   persistence:
     enabled: true

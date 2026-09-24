@@ -41,6 +41,9 @@ helm upgrade cert-manager ${HELM_DIR}/cert-manager -n ingress -f ${HELM_DIR}/cer
 kubectl apply -f ${SCRIPT_DIR}/ingress/gateway_cert.yml \
   -f ${SCRIPT_DIR}/ingress/ingress-telemetry.yml
 
+kubectl -n istio-system rollout status deployment/istio-ingressgateway --timeout=5m
+kubectl apply -f ${SCRIPT_DIR}/ingress/cloudflare-origin-policy.yml
+
 
 # monitoring
 helm upgrade --install kube-prometheus-stack ${HELM_DIR}/kube-prometheus-stack --version 91.4.1 -n monitoring --create-namespace -f ${HELM_DIR}/kube-prometheus-stack/values.yaml --wait --timeout 15m

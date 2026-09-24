@@ -29,6 +29,9 @@ spec:
             load-balancer.hetzner.cloud/type: lb11
             external-dns.kubernetes.io/hostname: final-work-k8s.raisa44.men
             load-balancer.hetzner.cloud/use-private-ip: "true"
+            load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+          podAnnotations:
+            proxy.istio.io/config: '{"gatewayTopology":{"proxyProtocol":{}}}'
           resources:
             requests:
               cpu: 100m
