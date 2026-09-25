@@ -17,6 +17,7 @@ Terraform создаёт `hcloud_server` для `masters`, `workers`, `ingress` 
 - Loki в режиме `Monolithic` и Alloy DaemonSet для логов контейнеров.
 - GitLab Runner releases `build-runner`, `deploy-runner` и `test-runner`.
 - Tempo в режиме `Monolithic` и Alloy OTLP pipeline для дополнительного tracing.
+- Metrics Server для `metrics.k8s.io` и Kubernetes Autoscaler VPA для рекомендаций CPU/памяти и admission webhook.
 
 Публичный origin работает только через Cloudflare: для публичных VirtualService требуется `cloudflare-proxied: true`, а `ingress/cloudflare-origin-policy.yml` запрещает прямой трафик не из Cloudflare CIDR. Hetzner LoadBalancer и Istio ingress gateway используют PROXY protocol, чтобы Istio видел исходный IP клиента. Cloudflare IPv4/IPv6 CIDR нужно периодически сверять с официальными списками.
 
@@ -77,7 +78,7 @@ ansible-playbook k8s-install.yml -t cluster
 ./install.sh
 ```
 
-Скрипт применяет внешний файл `ns_secrets_roles.yml`, устанавливает HCCM и CSI, проверяет только major/minor `istioctl` на соответствие `1.30`, устанавливает Istio, ExternalDNS и cert-manager, применяет `ingress/gateway_cert.yml`, `ingress/ingress-telemetry.yml` и `ingress/cloudflare-origin-policy.yml`, затем устанавливает monitoring stack и три GitLab Runner. В локальных prerequisites указан target `istioctl 1.30.4`: он совместим с проверкой `1.30`, поскольку patch-версия скриптом не фиксируется. Отдельный ACME email в текущей команде не задаётся.
+Скрипт применяет внешний файл `ns_secrets_roles.yml`, устанавливает HCCM и CSI, проверяет только major/minor `istioctl` на соответствие `1.30`, устанавливает Istio, ExternalDNS и cert-manager, применяет `ingress/gateway_cert.yml`, `ingress/ingress-telemetry.yml` и `ingress/cloudflare-origin-policy.yml`, затем устанавливает kube-prometheus-stack, Metrics Server, VPA, остальной monitoring stack и три GitLab Runner. В локальных prerequisites указан target `istioctl 1.30.4`: он совместим с проверкой `1.30`, поскольку patch-версия скриптом не фиксируется. Отдельный ACME email в текущей команде не задаётся.
 
 ## Ingress, DNS и сертификаты
 
@@ -110,6 +111,10 @@ HCCM должен работать до создания LoadBalancer Service, �
 `helm/loki/values-final-work.yaml` устанавливает Loki, `helm/alloy/values-final-work.yaml` устанавливает Alloy DaemonSet на узлах, а `helm/loki-datasource` создаёт datasource `Loki` для Grafana. Loki доступен только внутри кластера; поток логов: pod -> Alloy -> Loki -> Grafana Explore.
 
 Подробные параметры, порядок upgrade, backup, LogQL, troubleshooting и acceptance checklist: [`docs/task-4-logging.md`](docs/task-4-logging.md).
+
+## Task 5: autoscaling
+
+Metrics Server `3.14.0` / app `0.9.0` публикует защищённый ресурсный API `metrics.k8s.io`; затем VPA chart `0.9.0` / app `1.7.0` устанавливает CRD, recommender, updater и admission controller/webhook. Оба официальных chart полностью vendored в `helm/metrics-server` и `helm/vertical-pod-autoscaler`. Компоненты toleration-ами работают на трёх tainted control-plane, не занимая единственный worker. Подробности HPA/VPA, upgrade и проверки: [`docs/task-5-autoscaling.md`](docs/task-5-autoscaling.md).
 
 Дополнительный tracing подготовлен через Tempo chart `3.0.0` / app `3.0.3`,
 Tempo datasource UID `tempo` и OTLP-порты Alloy `4317`/`4318`; существующий

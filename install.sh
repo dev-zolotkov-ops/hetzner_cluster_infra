@@ -47,6 +47,15 @@ kubectl apply -f ${SCRIPT_DIR}/ingress/cloudflare-origin-policy.yml
 
 # monitoring
 helm upgrade --install kube-prometheus-stack ${HELM_DIR}/kube-prometheus-stack --version 91.4.1 -n monitoring --create-namespace -f ${HELM_DIR}/kube-prometheus-stack/values.yaml --wait --timeout 15m
+helm upgrade --install metrics-server ${HELM_DIR}/metrics-server -n monitoring -f ${HELM_DIR}/metrics-server/values-final-work.yaml --wait --timeout 10m
+kubectl wait --for=condition=Available deployment/metrics-server -n monitoring --timeout=5m
+kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="Available")].status}'=True apiservice/v1beta1.metrics.k8s.io --timeout=5m
+helm upgrade --install vertical-pod-autoscaler ${HELM_DIR}/vertical-pod-autoscaler -n monitoring -f ${HELM_DIR}/vertical-pod-autoscaler/values-final-work.yaml --wait --timeout 10m
+kubectl wait --for=condition=Established crd/verticalpodautoscalers.autoscaling.k8s.io --timeout=5m
+kubectl wait --for=condition=Available deployment/vertical-pod-autoscaler-admission-controller -n monitoring --timeout=5m
+kubectl wait --for=condition=Available deployment/vertical-pod-autoscaler-recommender -n monitoring --timeout=5m
+kubectl wait --for=condition=Available deployment/vertical-pod-autoscaler-updater -n monitoring --timeout=5m
+kubectl get --raw /apis/metrics.k8s.io/v1beta1 >/dev/null
 helm upgrade --install loki ${HELM_DIR}/loki -n monitoring -f ${HELM_DIR}/loki/values-final-work.yaml --wait --timeout 10m
 helm upgrade --install tempo ${HELM_DIR}/tempo -n monitoring -f ${HELM_DIR}/tempo/values-final-work.yaml --wait --timeout 10m
 helm upgrade --install loki-datasource ${HELM_DIR}/loki-datasource -n monitoring --wait --timeout 10m

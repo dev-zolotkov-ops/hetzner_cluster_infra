@@ -1,0 +1,36 @@
+# Official Metrics Server chart 3.14.0 / app 0.9.0.
+# Helm generates the serving certificate and puts its CA in the APIService.
+apiService:
+  create: true
+  insecureSkipTLSVerify: false
+
+defaultArgs:
+  - --cert-dir=/tmp
+  - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  - --kubelet-use-node-status-port
+  - --metric-resolution=15s
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    cpu: 250m
+    memory: 300Mi
+
+replicas: 1
+priorityClassName: system-cluster-critical
+
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ''
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+tls:
+  type: helm
+  clusterDomain: cluster.local
+  helm:
+    lookup: true
+    certDurationDays: 365
