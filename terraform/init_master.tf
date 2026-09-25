@@ -55,7 +55,7 @@ locals {
     ssh_pwauth: false
   EOF
 
-  master_locations = ["fsn1", "nbg1", "hel1"]
+  master_locations = ["nbg1"]
 
   masters = {
     for i in range(var.master_count) : i => {

@@ -52,65 +52,6 @@
   when: inventory_hostname == groups['control_plane'][0]
   no_log: true
 
-# - name: Show groups dictionary
-#   debug:
-#     var: groups
-
-- name: Join additional control-plane nodes
-  command:
-    argv:
-      - kubeadm
-      - join
-      - "{{ haproxy_public_ip }}:6443"
-      - "--apiserver-advertise-address={{ ip }}"
-      - "--control-plane"
-      - "--token={{ kubeadm_token }}"
-      - "--certificate-key={{ hostvars[groups['control_plane'][0]].kubeadm_certs.stdout_lines[-1] }}"
-      - "--discovery-token-ca-cert-hash=sha256:{{ hostvars[groups['control_plane'][0]].kubeadm_ca_hash.stdout }}"
-    creates: /etc/kubernetes/kubelet.conf
-  when:
-    - inventory_hostname in groups['control_plane'][1:]
-    - groups['control_plane'] | length > 1
-  # no_log: true
-
-- name: Configure external cloud provider for worker and ingress kubelets
-  lineinfile:
-    path: /etc/default/kubelet
-    regexp: '^KUBELET_EXTRA_ARGS='
-    line: 'KUBELET_EXTRA_ARGS="--cloud-provider=external --provider-id=hcloud://{{ hcloud_server_id }}"'
-    create: true
-    owner: root
-    group: root
-    mode: '0644'
-  when:
-    - "'workers' in group_names or 'ingress' in group_names"
-    - hcloud_server_id is defined
-
-- name: Join worker and ingress nodes
-  command:
-    argv:
-      - kubeadm
-      - join
-      - "{{ haproxy_public_ip }}:6443"
-      - "--token={{ kubeadm_token }}"
-      - "--discovery-token-ca-cert-hash=sha256:{{ hostvars[groups['control_plane'][0]].kubeadm_ca_hash.stdout }}"
-    creates: /etc/kubernetes/kubelet.conf
-  when:
-    - "'workers' in group_names or 'ingress' in group_names"
-  no_log: true
-
-- name: Enable kubelet serving certificate bootstrap
-  lineinfile:
-    path: /var/lib/kubelet/config.yaml
-    regexp: '^serverTLSBootstrap:'
-    line: 'serverTLSBootstrap: true'
-    insertafter: EOF
-    owner: root
-    group: root
-    mode: '0644'
-  when: inventory_hostname not in groups['haproxy']
-  notify: Restart kubelet after configuration change
-
 - name: Create the root kubeconfig directory
   file:
     path: /root/.kube
@@ -202,13 +143,134 @@
   changed_when: false
   when: inventory_hostname == groups['control_plane'][0]
 
-- name: Restart kubelets after the approver is ready
+- name: Join additional control-plane nodes
+  command:
+    argv:
+      - kubeadm
+      - join
+      - "{{ haproxy_public_ip }}:6443"
+      - "--apiserver-advertise-address={{ ip }}"
+      - "--control-plane"
+      - "--token={{ kubeadm_token }}"
+      - "--certificate-key={{ hostvars[groups['control_plane'][0]].kubeadm_certificate_key }}"
+      - "--discovery-token-ca-cert-hash=sha256:{{ hostvars[groups['control_plane'][0]].kubeadm_ca_hash.stdout }}"
+    creates: /etc/kubernetes/kubelet.conf
+  when:
+    - inventory_hostname in groups['control_plane'][1:]
+    - groups['control_plane'] | length > 1
+  no_log: true
+
+- name: Configure external cloud provider for worker and ingress kubelets
+  lineinfile:
+    path: /etc/default/kubelet
+    regexp: '^KUBELET_EXTRA_ARGS='
+    line: 'KUBELET_EXTRA_ARGS="--cloud-provider=external --provider-id=hcloud://{{ hcloud_server_id }} --node-ip={{ ip }}"'
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - "'workers' in group_names or 'ingress' in group_names"
+    - hcloud_server_id is defined
+  notify: Restart kubelet after configuration change
+
+- name: Join worker and ingress nodes
+  command:
+    argv:
+      - kubeadm
+      - join
+      - "{{ haproxy_public_ip }}:6443"
+      - "--token={{ kubeadm_token }}"
+      - "--discovery-token-ca-cert-hash=sha256:{{ hostvars[groups['control_plane'][0]].kubeadm_ca_hash.stdout }}"
+    creates: /etc/kubernetes/kubelet.conf
+  when:
+    - "'workers' in group_names or 'ingress' in group_names"
+  no_log: true
+
+- name: Wait for kubeadm to create kubelet.conf
+  wait_for:
+    path: /etc/kubernetes/kubelet.conf
+    state: present
+    timeout: 60
+    msg: "kubeadm bootstrap did not create /etc/kubernetes/kubelet.conf"
+  when: inventory_hostname not in groups['haproxy']
+
+- name: Wait for kubeadm to create kubelet config.yaml
+  wait_for:
+    path: /var/lib/kubelet/config.yaml
+    state: present
+    timeout: 60
+    msg: "kubeadm bootstrap did not create /var/lib/kubelet/config.yaml"
+  when: inventory_hostname not in groups['haproxy']
+
+- name: Wait for kubeadm to create kubeadm-flags.env
+  wait_for:
+    path: /var/lib/kubelet/kubeadm-flags.env
+    state: present
+    timeout: 60
+    msg: "kubeadm bootstrap did not create /var/lib/kubelet/kubeadm-flags.env"
+  when: inventory_hostname not in groups['haproxy']
+
+- name: Enable kubelet serving certificate bootstrap after kubeadm
+  lineinfile:
+    path: /var/lib/kubelet/config.yaml
+    regexp: '^serverTLSBootstrap:'
+    line: 'serverTLSBootstrap: true'
+    insertafter: EOF
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - inventory_hostname not in groups['haproxy']
+  notify: Restart kubelet after configuration change
+
+- name: Restart joined kubelets after serving bootstrap configuration
   meta: flush_handlers
 
 - name: Wait for the kubelet serving certificate
-  wait_for:
-    path: /var/lib/kubelet/pki/kubelet-server-current.pem
-    timeout: 300
+  block:
+    - name: Wait for the kubelet serving certificate file
+      wait_for:
+        path: /var/lib/kubelet/pki/kubelet-server-current.pem
+        timeout: 300
+  rescue:
+    - name: Collect kubelet-serving CSRs after certificate wait failure
+      command:
+        argv:
+          - kubectl
+          - --kubeconfig=/etc/kubernetes/admin.conf
+          - get
+          - csr
+          - -o
+          - wide
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      register: kubelet_serving_csr_diagnostics
+      changed_when: false
+      failed_when: false
+
+    - name: Collect kubelet CSR approver logs after certificate wait failure
+      command:
+        argv:
+          - kubectl
+          - --kubeconfig=/etc/kubernetes/admin.conf
+          - --namespace=kube-system
+          - logs
+          - deployment/kubelet-csr-approver
+          - --all-containers
+          - --tail=200
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      register: kubelet_csr_approver_diagnostics
+      changed_when: false
+      failed_when: false
+
+    - name: Fail after collecting kubelet serving certificate diagnostics
+      fail:
+        msg: >-
+          Timed out waiting for /var/lib/kubelet/pki/kubelet-server-current.pem on
+          {{ inventory_hostname }}. Kubelet-serving CSR diagnostics:
+          {{ kubelet_serving_csr_diagnostics.stdout | default('unavailable') }}
+          Approver logs:
+          {{ kubelet_csr_approver_diagnostics.stdout | default('unavailable') }}
   when: inventory_hostname not in groups['haproxy']
 
 - name: Check for pending kubelet serving CSRs

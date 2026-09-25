@@ -55,7 +55,7 @@ locals {
     ssh_pwauth: false
   EOF
 
-  worker_locations = ["fsn1", "nbg1", "hel1"]
+  worker_locations = ["fsn1"]
 
   workers = {
     for i in range(var.worker_count) : i => {
@@ -65,7 +65,7 @@ locals {
     }
   }
 
-  ingress_locations = ["fsn1", "nbg1", "hel1"]
+  ingress_locations = ["fsn1"]
 
   ingress = {
     for i in range(var.ingress_count) : i => {
