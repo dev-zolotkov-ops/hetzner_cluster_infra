@@ -48,7 +48,9 @@ kubectl apply -f ${SCRIPT_DIR}/ingress/cloudflare-origin-policy.yml
 # monitoring
 helm upgrade --install kube-prometheus-stack ${HELM_DIR}/kube-prometheus-stack --version 91.4.1 -n monitoring --create-namespace -f ${HELM_DIR}/kube-prometheus-stack/values.yaml --wait --timeout 15m
 helm upgrade --install loki ${HELM_DIR}/loki -n monitoring -f ${HELM_DIR}/loki/values-final-work.yaml --wait --timeout 10m
+helm upgrade --install tempo ${HELM_DIR}/tempo -n monitoring -f ${HELM_DIR}/tempo/values-final-work.yaml --wait --timeout 10m
 helm upgrade --install loki-datasource ${HELM_DIR}/loki-datasource -n monitoring --wait --timeout 10m
+helm upgrade --install tempo-datasource ${HELM_DIR}/tempo-datasource -n monitoring --wait --timeout 10m
 helm upgrade --install alloy ${HELM_DIR}/alloy -n monitoring -f ${HELM_DIR}/alloy/values-final-work.yaml --wait --timeout 10m
 
 # CI/CD

@@ -1,0 +1,40 @@
+replicas: 1
+
+tempo:
+  retention: 72h
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+persistence:
+  enabled: true
+  storageClassName: hcloud-volumes
+  size: 10Gi
+  enableStatefulSetAutoDeletePVC: false
+
+service:
+  type: ClusterIP
+
+serviceAccount:
+  automountServiceAccountToken: false
+
+serviceMonitor:
+  enabled: false

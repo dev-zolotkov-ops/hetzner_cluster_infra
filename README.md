@@ -16,6 +16,7 @@ Terraform создаёт `hcloud_server` для `masters`, `workers`, `ingress` 
 - `kube-prometheus-stack` для Prometheus, Grafana, Alertmanager, node-exporter и kube-state-metrics.
 - Loki в режиме `Monolithic` и Alloy DaemonSet для логов контейнеров.
 - GitLab Runner releases `build-runner`, `deploy-runner` и `test-runner`.
+- Tempo в режиме `Monolithic` и Alloy OTLP pipeline для дополнительного tracing.
 
 Публичный origin работает только через Cloudflare: для публичных VirtualService требуется `cloudflare-proxied: true`, а `ingress/cloudflare-origin-policy.yml` запрещает прямой трафик не из Cloudflare CIDR. Hetzner LoadBalancer и Istio ingress gateway используют PROXY protocol, чтобы Istio видел исходный IP клиента. Cloudflare IPv4/IPv6 CIDR нужно периодически сверять с официальными списками.
 
@@ -109,6 +110,13 @@ HCCM должен работать до создания LoadBalancer Service, �
 `helm/loki/values-final-work.yaml` устанавливает Loki, `helm/alloy/values-final-work.yaml` устанавливает Alloy DaemonSet на узлах, а `helm/loki-datasource` создаёт datasource `Loki` для Grafana. Loki доступен только внутри кластера; поток логов: pod -> Alloy -> Loki -> Grafana Explore.
 
 Подробные параметры, порядок upgrade, backup, LogQL, troubleshooting и acceptance checklist: [`docs/task-4-logging.md`](docs/task-4-logging.md).
+
+Дополнительный tracing подготовлен через Tempo chart `3.0.0` / app `3.0.3`,
+Tempo datasource UID `tempo` и OTLP-порты Alloy `4317`/`4318`; существующий
+log flow не изменяется. Источник spans — instrumented сервисы Online Boutique
+`v0.10.0`, отправляющие OTLP через Alloy в Tempo. До redeploy boutique с tracing
+environment variables live spans не ожидаются; подробности и проверка находятся
+в [`docs/task-4-logging.md`](docs/task-4-logging.md).
 
 ## Проверка кластера
 

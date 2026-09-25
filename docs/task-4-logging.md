@@ -12,6 +12,16 @@ Explore:
 Все компоненты находятся в namespace `monitoring`. Loki не публикуется наружу:
 Grafana обращается к его ClusterIP Service внутри кластера.
 
+Логирование не меняется при добавлении tracing. Дополнительный поток trace:
+
+```text
+Online Boutique (OTLP) -> Alloy Service/DaemonSet -> Tempo -> Grafana Explore
+```
+
+В Alloy включены внутренние ClusterIP-порты `4317` (OTLP gRPC) и `4318`
+(OTLP HTTP). Текущий log flow `pod -> Alloy -> Loki -> Grafana Explore`
+остаётся прежним.
+
 ### Почему Monolithic
 
 Для небольшого кластера выбран режим Loki `Monolithic` (SingleBinary): один pod
@@ -41,7 +51,7 @@ Grafana обращается к его ClusterIP Service внутри класт
 | Gateway/MinIO/cache | Gateway, MinIO, memcached, chunks/results cache выключены |
 | Alloy controller | DaemonSet, включая control-plane благодаря toleration `node-role.kubernetes.io/control-plane:NoSchedule` |
 | Alloy resources | requests `100m` CPU / `128Mi`; limits `500m` CPU / `512Mi` |
-| Alloy Service | выключен (`service.enabled: false`) |
+| Alloy Service | внутренний `ClusterIP`, OTLP gRPC `4317` и OTLP HTTP `4318` |
 
 Явные `securityContext`, `nodeSelector`, affinity и host mounts в финальных values
 не заданы. Alloy читает логи через Kubernetes API; `/var/log` и Docker socket не
@@ -79,19 +89,48 @@ Release `loki-datasource` создаёт ConfigMap `loki-datasource` с label
 ConfigMap в namespace `monitoring`, resource `configmap`, и импортирует ConfigMap
 с label `grafana_datasource`. Ручное добавление datasource в UI не требуется.
 
+Release `tempo-datasource` создаёт ConfigMap `tempo-datasource` с тем же label.
+Datasource имеет имя `Tempo`, UID `tempo`, тип `tempo`, `access: proxy`, URL
+`http://tempo.monitoring.svc.cluster.local:3200` и не является default.
+
+## Дополнительный tracing pipeline
+
+В репозитории подготовлен монолитный Tempo:
+
+| Параметр | Подготовленное значение |
+|---|---|
+| Tempo chart / app | `3.0.0` / `3.0.3` |
+| Tempo mode | Monolithic, `replicas: 1` |
+| Tempo storage | local filesystem, PVC `10Gi`, StorageClass `hcloud-volumes` |
+| Tempo PVC lifecycle | `enableStatefulSetAutoDeletePVC: false` |
+| Tempo retention | `72h` |
+| Tempo HTTP/query | `tempo` Service, port `3200` |
+| OTLP receivers | gRPC `4317`, HTTP `4318` |
+
+Источник spans — сервисы Online Boutique `v0.10.0`, instrumented services,
+которые после redeploy приложения отправляют OTLP во внутренний Alloy. Сейчас
+в live-кластере tracing environment variables ещё нет: код и Helm-конфигурация
+подготовлены, но boutique с этой конфигурацией пока не redeployed. Поэтому
+отсутствие spans до redeploy ожидаемо.
+
 ## Файлы и порядок установки
 
 - `helm/loki/Chart.yaml`, `helm/loki/values-final-work.yaml` — Loki.
 - `helm/alloy/Chart.yaml`, `helm/alloy/values-final-work.yaml` — Alloy и pipeline.
 - `helm/loki-datasource/Chart.yaml`, `templates/datasource.yaml` — datasource.
+- `helm/tempo/Chart.yaml`, `helm/tempo/values-final-work.yaml` — Tempo 3.0.0/3.0.3 и storage.
+- `helm/tempo-datasource/Chart.yaml`, `templates/datasource.yaml` — Tempo datasource.
 - `helm/kube-prometheus-stack/values.yaml` — Grafana sidecar.
 - `install.sh` — общий порядок bootstrap и Helm-команды.
 - `docs/task-3-monitoring.md` — связанная документация метрик и Grafana.
 - `README.md` — краткая ссылка и общий bootstrap.
 
 В секции `monitoring` скрипт устанавливает сначала `kube-prometheus-stack`, затем
-`loki`, `loki-datasource`, и затем `alloy`. Для полного bootstrap запускается
-`./install.sh` из корня репозитория после подготовки секретов и инфраструктуры.
+`loki`, `tempo`, `loki-datasource`, `tempo-datasource`, и затем `alloy`. Сначала
+должна быть готова инфраструктура и monitoring/observability, затем можно
+развернуть или redeploy Online Boutique через GitLab CI с tracing environment
+variables. Для полного bootstrap запускается `./install.sh` из корня репозитория
+после подготовки секретов и инфраструктуры.
 
 ## Prerequisites, backup и schema
 
@@ -121,9 +160,16 @@ kubectl -n monitoring get secret grafana-admin-credentials
 ```bash
 helm upgrade --install kube-prometheus-stack ./helm/kube-prometheus-stack --version 91.4.1 -n monitoring --create-namespace -f ./helm/kube-prometheus-stack/values.yaml --wait --timeout 15m
 helm upgrade --install loki ./helm/loki -n monitoring -f ./helm/loki/values-final-work.yaml --wait --timeout 10m
+helm upgrade --install tempo ./helm/tempo -n monitoring -f ./helm/tempo/values-final-work.yaml --wait --timeout 10m
 helm upgrade --install loki-datasource ./helm/loki-datasource -n monitoring --wait --timeout 10m
+helm upgrade --install tempo-datasource ./helm/tempo-datasource -n monitoring --wait --timeout 10m
 helm upgrade --install alloy ./helm/alloy -n monitoring -f ./helm/alloy/values-final-work.yaml --wait --timeout 10m
 ```
+
+Эти команды только подготавливают observability stack. После них выполняется
+redeploy Online Boutique `v0.10.0` через GitLab CI с переменными tracing; до этого
+Tempo может быть Ready, но не иметь spans. Порядок важен: инфраструктура и CSI,
+monitoring, Loki/Tempo, datasources, Alloy, затем boutique.
 
 Для полного развёртывания, а не только logging stack, используйте:
 
@@ -150,6 +196,30 @@ kubectl -n monitoring logs daemonset/alloy --all-containers --tail=100
 kubectl -n monitoring get cm loki-datasource -o yaml
 kubectl -n monitoring get cm -l grafana_datasource=1
 ```
+
+Для дополнительного tracing после redeploy boutique:
+
+```bash
+kubectl -n monitoring rollout status statefulset/tempo --timeout=10m
+kubectl -n monitoring get svc tempo alloy
+kubectl -n monitoring get pvc storage-tempo-0
+kubectl -n monitoring get pods -l app.kubernetes.io/name=tempo
+kubectl -n online-boutique get deploy -o yaml | grep -E 'ENABLE_TRACING|OTEL|OTLP|4317|4318'
+kubectl -n monitoring port-forward svc/tempo 3200:3200
+kubectl -n monitoring port-forward pod/<ALLOY_POD> 12345:12345
+```
+
+В Grafana выберите datasource `Tempo` и выполните TraceQL-запрос:
+
+```traceql
+{ resource.service.name = "frontend" }
+```
+
+Либо используйте фильтр по `service.name`. Сгенерируйте sample traffic в
+Online Boutique перед поиском новых spans. До redeploy instrumented boutique
+нулевое количество spans ожидаемо. При наличии Alloy span metrics дополнительно
+проверьте `http://127.0.0.1:12345/metrics` через port-forward pod Alloy;
+соответствующие метрики также не появятся до включения tracing.
 
 Для проверки ingestion после генерации трафика используйте Loki API через
 port-forward:
@@ -210,7 +280,9 @@ minutes** и выполните:
 
 ```bash
 helm uninstall alloy -n monitoring
+helm uninstall tempo-datasource -n monitoring
 helm uninstall loki-datasource -n monitoring
+helm uninstall tempo -n monitoring
 helm uninstall loki -n monitoring
 ```
 
@@ -230,3 +302,7 @@ helm uninstall loki -n monitoring
 - [ ] За последние 15 минут найдены логи минимум двух-трёх сервисов: `frontend`, `checkoutservice`, `loadgenerator`.
 - [ ] Отдельно проверен запрос `{container="istio-proxy"}` или явно зафиксировано отсутствие Istio sidecar у выбранного pod.
 - [ ] Проверен `{collector="alloy"}` и исключено дублирование записей.
+- [ ] Tempo chart `3.0.0` / app `3.0.3`, PVC `storage-tempo-0` Bound и retention `72h` подтверждены.
+- [ ] `tempo-datasource` найден Grafana sidecar, datasource `Tempo` виден в Explore.
+- [ ] После redeploy Online Boutique найдены spans по TraceQL `{ resource.service.name = "frontend" }`.
+- [ ] Подтверждено, что до redeploy boutique отсутствие spans и Alloy span metrics ожидаемо.
