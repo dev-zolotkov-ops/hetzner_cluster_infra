@@ -12,9 +12,16 @@ import json
 import shutil
 import subprocess
 import sys
+import re
 from pathlib import Path
 
+try:
+    import yaml as _yaml
+except ImportError:
+    _yaml = None
+
 REGISTRY = Path(__file__).with_name("monitoring-volume-registry.json")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 CSI = "csi.hetzner.cloud"
 PVC_NAME_KEYS = ("pvc-name", "csi.hetzner.cloud/pvc-name")
 PVC_NAMESPACE_KEYS = ("pvc-namespace", "csi.hetzner.cloud/pvc-namespace")
@@ -36,18 +43,85 @@ def load_json(path):
         return json.load(stream)
 
 
-def expected(registry):
+def helm_values(path):
+    if _yaml is None:
+        fail("PyYAML is required to derive monitoring storage from Helm values")
+    assert _yaml is not None
+    try:
+        with path.open(encoding="utf-8") as stream:
+            return _yaml.safe_load(stream)
+    except OSError as error:
+        fail(f"cannot read Helm values {path}: {error}")
+    except Exception as error:
+        fail(f"invalid Helm YAML {path}: {error}")
+
+
+def quantity(value, field):
+    match = re.fullmatch(r"([1-9][0-9]*)Gi", str(value or ""))
+    if not match:
+        fail(f"{field} must be a positive whole Gi quantity")
+    return int(match.group(1) if match else 0)
+
+
+def mapping(value, field):
+    if not isinstance(value, dict):
+        fail(f"{field} must be a YAML mapping")
+    return value
+
+
+def storage_contract(repo_root=REPO_ROOT):
+    stack = mapping(helm_values(repo_root / "helm/kube-prometheus-stack/values.yaml"), "kube-prometheus-stack values")
+    loki = mapping(helm_values(repo_root / "helm/loki/values-final-work.yaml"), "Loki values")
+    tempo = mapping(helm_values(repo_root / "helm/tempo/values-final-work.yaml"), "Tempo values")
+    grafana = mapping(stack.get("grafana"), "grafana")
+    prometheus = mapping(stack.get("prometheus"), "prometheus")
+    spec = mapping(prometheus.get("prometheusSpec"), "prometheus.prometheusSpec")
+    storage_spec = mapping(spec.get("storageSpec"), "prometheus.prometheusSpec.storageSpec")
+    template = mapping(storage_spec.get("volumeClaimTemplate"), "prometheus volumeClaimTemplate")
+    template_spec = mapping(template.get("spec"), "prometheus volumeClaimTemplate.spec")
+    single = mapping(loki.get("singleBinary"), "loki.singleBinary")
+    lp = mapping(single.get("persistence"), "loki.singleBinary.persistence")
+    tp = mapping(tempo.get("persistence"), "tempo.persistence")
+    grafana_persistence = mapping(grafana.get("persistence"), "grafana.persistence")
+    if not grafana_persistence.get("enabled") or grafana_persistence.get("storageClassName") != "hcloud-volumes":
+        fail("Grafana persistence must be enabled with hcloud-volumes")
+    if template_spec.get("storageClassName") != "hcloud-volumes":
+        fail("Prometheus persistence must use hcloud-volumes")
+    if not lp.get("enabled") or lp.get("storageClass") != "hcloud-volumes":
+        fail("Loki persistence must be enabled with hcloud-volumes")
+    if not tp.get("enabled") or tp.get("storageClassName") != "hcloud-volumes":
+        fail("Tempo persistence must be enabled with hcloud-volumes")
+    if spec.get("replicas") != 2 or single.get("replicas") != 1 or tempo.get("replicas") != 1:
+        fail("monitoring replicas must be Prometheus=2, Loki=1, Tempo=1")
+    return {
+        "grafana": quantity(grafana_persistence.get("size"), "Grafana persistence.size"),
+        "loki": quantity(lp.get("size"), "Loki singleBinary.persistence.size"),
+        "tempo": quantity(tp.get("size"), "Tempo persistence.size"),
+        "prometheus-0": quantity(mapping(mapping(template_spec.get("resources"), "Prometheus resources").get("requests"), "Prometheus resource requests").get("storage"), "Prometheus storage"),
+        "prometheus-1": quantity(mapping(mapping(template_spec.get("resources"), "Prometheus resources").get("requests"), "Prometheus resource requests").get("storage"), "Prometheus storage"),
+    }
+
+
+def expected(registry, repo_root=REPO_ROOT):
     claims = registry.get("expectedClaims")
     if registry.get("namespace") != "monitoring" or registry.get("storageClass") != "hcloud-volumes":
         fail("registry namespace/storageClass is not the monitoring contract")
     if not isinstance(claims, list) or len(claims) != 5:
         fail("registry must define exactly five expected claims")
+    capacities = storage_contract(repo_root)
     result = {}
+    roles = []
     for item in claims:
+        if not isinstance(item, dict):
+            fail("registry expectedClaims entries must be mappings")
         claim = item.get("claim")
-        if not claim or claim in result or item.get("sizeGi") not in (10, 30):
+        role = item.get("role")
+        roles.append(role)
+        if not claim or claim in result or role not in capacities:
             fail("registry contains an invalid or duplicate expected claim")
-        result[claim] = item
+        result[claim] = {**item, "sizeGi": capacities[role]}
+    if len(set(roles)) != len(capacities) or set(roles) != set(capacities):
+        fail("registry must contain exactly one claim for every configured monitoring role")
     return result
 
 
@@ -102,8 +176,8 @@ def volume_identity(volume, claims, namespace):
     return claim
 
 
-def validate_volumes(registry, volumes, require_detached=True):
-    claims = expected(registry)
+def validate_volumes(registry, volumes, require_detached=True, repo_root=REPO_ROOT):
+    claims = expected(registry, repo_root)
     legacy = {str(value) for value in registry.get("legacyVolumeIds", [])}
     if len(legacy) != 5:
         fail("registry must list exactly five legacy volume IDs")
@@ -150,8 +224,8 @@ def validate_volumes(registry, volumes, require_detached=True):
     return selected
 
 
-def pv_manifest(registry, selected):
-    claims = expected(registry)
+def pv_manifest(registry, selected, repo_root=REPO_ROOT):
+    claims = expected(registry, repo_root)
     documents = []
     for claim, volume in sorted(selected.items()):
         item = claims[claim]

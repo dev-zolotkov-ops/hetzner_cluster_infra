@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 import importlib.util
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
+
+import yaml
 
 spec = importlib.util.spec_from_file_location("recovery", "storage/recover_monitoring_volumes.py")
 assert spec is not None and spec.loader is not None
@@ -17,13 +22,29 @@ def volume(number, claim_name, size, namespace="monitoring", role=None, server=N
 
 
 class RecoveryTests(unittest.TestCase):
+    def size(self, role):
+        return recovery.storage_contract()[role]
+
+    def temporary_values(self):
+        temp = tempfile.TemporaryDirectory()
+        root = Path(temp.name)
+        for relative in (
+            "helm/kube-prometheus-stack/values.yaml",
+            "helm/loki/values-final-work.yaml",
+            "helm/tempo/values-final-work.yaml",
+        ):
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(recovery.REPO_ROOT / relative, target)
+        return temp, root
+
     def all_claim_volumes(self, old=True):
         claims = recovery.expected(REGISTRY)
         ids = REGISTRY["legacyVolumeIds"] if old else [200001, 200002, 200003, 200004, 200005]
         result = []
         for volume_id, (claim, item) in zip(ids, claims.items()):
             pvc_name = claim[-63:] if claim.startswith("prometheus-") else claim
-            result.append(volume(volume_id, pvc_name, item["sizeGi"], role=None if old else item["role"]))
+            result.append(volume(volume_id, pvc_name, self.size(item["role"]), role=None if old else item["role"]))
         return result
 
     def test_all_old_volumes_win_over_new_duplicates_and_post_binds(self):
@@ -58,50 +79,50 @@ class RecoveryTests(unittest.TestCase):
 
     def test_all_five_labels_map_without_size_inference(self):
         claims = recovery.expected(REGISTRY)
-        volumes = [volume(number, claim, item["sizeGi"]) for number, (claim, item) in zip(REGISTRY["legacyVolumeIds"], claims.items())]
+        volumes = [volume(number, claim, self.size(item["role"])) for number, (claim, item) in zip(REGISTRY["legacyVolumeIds"], claims.items())]
         selected = recovery.validate_volumes(REGISTRY, volumes)
         self.assertEqual(set(selected), set(claims))
 
     def test_left_truncated_long_claim_matches_only_suffix(self):
         claim = next(name for name in recovery.expected(REGISTRY) if name.startswith("prometheus-"))
         truncated = claim[-63:]
-        selected = recovery.validate_volumes(REGISTRY, [volume(106953876, truncated, 30)])
+        selected = recovery.validate_volumes(REGISTRY, [volume(106953876, truncated, self.size("prometheus-0"))])
         self.assertEqual(selected[claim]["id"], 106953876)
 
     def test_known_missing_identity_fails_closed(self):
-        item = volume(106953874, "", 10)
+        item = volume(106953874, "", self.size("grafana"))
         item["labels"] = {}
         with self.assertRaises(recovery.RecoveryError):
             recovery.validate_volumes(REGISTRY, [item])
 
     def test_legacy_wins_over_new_duplicate(self):
         claim = "kube-prometheus-stack-grafana"
-        replacement = volume(9001, claim, 10, role="grafana")
-        selected = recovery.validate_volumes(REGISTRY, [replacement, volume(106953874, claim, 10)])
+        replacement = volume(9001, claim, self.size("grafana"), role="grafana")
+        selected = recovery.validate_volumes(REGISTRY, [replacement, volume(106953874, claim, self.size("grafana"))])
         self.assertEqual(selected[claim]["id"], 106953874)
 
     def test_unique_tagged_replacement_wins_when_legacy_absent(self):
         claim = "kube-prometheus-stack-grafana"
-        selected = recovery.validate_volumes(REGISTRY, [volume(9001, claim, 10, role="grafana")])
+        selected = recovery.validate_volumes(REGISTRY, [volume(9001, claim, self.size("grafana"), role="grafana")])
         self.assertEqual(selected[claim]["id"], 9001)
 
     def test_ambiguous_replacements_fail_closed(self):
         claim = "kube-prometheus-stack-grafana"
         with self.assertRaises(recovery.RecoveryError):
-            recovery.validate_volumes(REGISTRY, [volume(9001, claim, 10), volume(9002, claim, 10)])
+            recovery.validate_volumes(REGISTRY, [volume(9001, claim, self.size("grafana")), volume(9002, claim, self.size("grafana"))])
 
     def test_foreign_namespace_and_created_by_only_are_ignored(self):
-        foreign = volume(9001, "kube-prometheus-stack-grafana", 10, namespace="other")
+        foreign = volume(9001, "kube-prometheus-stack-grafana", self.size("grafana"), namespace="other")
         foreign["id"] = 9002
-        created_only = {"id": 9003, "size": 10, "location": {"name": "fsn1"}, "server": None, "labels": {"created-by": "hcloud-csi"}}
+        created_only = {"id": 9003, "size": self.size("grafana"), "location": {"name": "fsn1"}, "server": None, "labels": {"created-by": "hcloud-csi"}}
         self.assertEqual(recovery.validate_volumes(REGISTRY, [foreign, created_only]), {})
 
     def test_wrong_namespace_size_location_or_attachment_fails(self):
         with self.assertRaises(recovery.RecoveryError):
-            recovery.validate_volumes(REGISTRY, [volume(106953874, "kube-prometheus-stack-grafana", 10, namespace="default")])
+            recovery.validate_volumes(REGISTRY, [volume(106953874, "kube-prometheus-stack-grafana", self.size("grafana"), namespace="default")])
         with self.assertRaises(recovery.RecoveryError):
-            recovery.validate_volumes(REGISTRY, [volume(106953874, "kube-prometheus-stack-grafana", 30)])
-        attached = volume(106953874, "kube-prometheus-stack-grafana", 10, server={"id": 1})
+            recovery.validate_volumes(REGISTRY, [volume(106953874, "kube-prometheus-stack-grafana", self.size("grafana") + 1)])
+        attached = volume(106953874, "kube-prometheus-stack-grafana", self.size("grafana"), server={"id": 1})
         selected = recovery.validate_volumes(REGISTRY, [attached])
         manifest = recovery.pv_manifest(REGISTRY, selected)[0]
         self.assertEqual(manifest["metadata"]["annotations"]["cluster-infra/selected-attached"], "true")
@@ -109,13 +130,13 @@ class RecoveryTests(unittest.TestCase):
     def test_attached_new_duplicate_does_not_block_legacy_selection(self):
         claim = "kube-prometheus-stack-grafana"
         selected = recovery.validate_volumes(REGISTRY, [
-            volume(9001, claim, 10, server={"id": 2}),
-            volume(106953874, claim, 10),
+            volume(9001, claim, self.size("grafana"), server={"id": 2}),
+            volume(106953874, claim, self.size("grafana")),
         ])
         self.assertEqual(selected[claim]["id"], 106953874)
 
     def test_manifest_has_exact_claim_ref_and_handle(self):
-        selected = recovery.validate_volumes(REGISTRY, [volume(106953874, "kube-prometheus-stack-grafana", 10)])
+        selected = recovery.validate_volumes(REGISTRY, [volume(106953874, "kube-prometheus-stack-grafana", self.size("grafana"))])
         manifest = recovery.pv_manifest(REGISTRY, selected)[0]
         self.assertEqual(manifest["spec"]["claimRef"], {"namespace": "monitoring", "name": "kube-prometheus-stack-grafana"})
         self.assertEqual(manifest["spec"]["csi"]["volumeHandle"], "106953874")
@@ -123,7 +144,7 @@ class RecoveryTests(unittest.TestCase):
 
     def test_post_binding_handle_mismatch_fails(self):
         claim = "kube-prometheus-stack-grafana"
-        selected = {claim: volume(106953874, claim, 10)}
+        selected = {claim: volume(106953874, claim, self.size("grafana"))}
         pvc = {"metadata": {"namespace": "monitoring", "name": claim}, "status": {"phase": "Bound"}, "spec": {"volumeName": "pv"}}
         pv = {"metadata": {"name": "pv"}, "spec": {"csi": {"volumeHandle": "wrong"}, "persistentVolumeReclaimPolicy": "Retain"}}
         with self.assertRaises(recovery.RecoveryError):
@@ -131,7 +152,7 @@ class RecoveryTests(unittest.TestCase):
 
     def test_bound_existing_dynamic_pv_skips_duplicate_static_pv(self):
         claim = "kube-prometheus-stack-grafana"
-        selected = recovery.validate_volumes(REGISTRY, [volume(106953874, claim, 10)])
+        selected = recovery.validate_volumes(REGISTRY, [volume(106953874, claim, self.size("grafana"))])
         desired = recovery.pv_manifest(REGISTRY, selected)
         existing_pv = {"metadata": {"name": "dynamic-pv"}, "spec": {
             "csi": {"driver": recovery.CSI, "volumeHandle": "106953874", "fsType": "ext4"},
@@ -143,11 +164,43 @@ class RecoveryTests(unittest.TestCase):
 
     def test_second_existing_pv_with_same_handle_fails(self):
         claim = "kube-prometheus-stack-grafana"
-        selected = recovery.validate_volumes(REGISTRY, [volume(106953874, claim, 10)])
+        selected = recovery.validate_volumes(REGISTRY, [volume(106953874, claim, self.size("grafana"))])
         desired = recovery.pv_manifest(REGISTRY, selected)
         first = {"metadata": {"name": "other-pv"}, "spec": {"csi": {"driver": recovery.CSI, "volumeHandle": "106953874"}}}
         with self.assertRaises(recovery.RecoveryError):
             recovery.plan_documents(desired, [first], [])
+
+    def test_values_drive_manifest_size_and_cloud_validation(self):
+        temp, root = self.temporary_values()
+        try:
+            path = root / "helm/kube-prometheus-stack/values.yaml"
+            values = yaml.safe_load(path.read_text(encoding="utf-8"))
+            values["grafana"]["persistence"]["size"] = "17Gi"
+            path.write_text(yaml.safe_dump(values), encoding="utf-8")
+            claim = "kube-prometheus-stack-grafana"
+            selected = recovery.validate_volumes(REGISTRY, [volume(106953874, claim, 17)], repo_root=root)
+            manifest = recovery.pv_manifest(REGISTRY, selected, repo_root=root)[0]
+            self.assertEqual(manifest["spec"]["capacity"]["storage"], "17Gi")
+        finally:
+            temp.cleanup()
+
+    def test_values_class_or_replica_mismatch_fails_closed(self):
+        for change in ("class", "replicas"):
+            temp, root = self.temporary_values()
+            try:
+                if change == "class":
+                    path = root / "helm/loki/values-final-work.yaml"
+                    values = yaml.safe_load(path.read_text(encoding="utf-8"))
+                    values["singleBinary"]["persistence"]["storageClass"] = "other"
+                else:
+                    path = root / "helm/tempo/values-final-work.yaml"
+                    values = yaml.safe_load(path.read_text(encoding="utf-8"))
+                    values["replicas"] = 2
+                path.write_text(yaml.safe_dump(values), encoding="utf-8")
+                with self.assertRaises(recovery.RecoveryError):
+                    recovery.expected(REGISTRY, repo_root=root)
+            finally:
+                temp.cleanup()
 
 
 if __name__ == "__main__":
