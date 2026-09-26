@@ -771,7 +771,10 @@ metrics:
 storageClasses:
   - name: hcloud-volumes
     defaultStorageClass: true
-    reclaimPolicy: Delete
+    # Monitoring data must survive cluster/terraform destruction. Recovery uses
+    # explicit CSI PVs with the same policy; this also protects first dynamic
+    # allocations before they are registered in the external volume registry.
+    reclaimPolicy: Retain
     ## @param storageClasses[].annotations Additional annotations for the StorageClass
     ## Optionally, specify StorageClass annotations to be added.
     ## e.g.:

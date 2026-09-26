@@ -25,7 +25,7 @@ Terraform создаёт `hcloud_server` для `masters`, `workers`, `ingress` 
 
 ## Что нужно локально
 
-Нужны Terraform с lockfile провайдера Hetzner, Ansible, `kubectl`, Helm, `jq`, `curl`, `dig` и `istioctl` версии **1.30.4**. Перед Helm-командами настройте kubeconfig и выберите целевой context. Helm charts и зависимости уже находятся в репозитории; `helm repo update` для `install.sh` не нужен.
+Нужны Terraform с lockfile провайдера Hetzner, Ansible, `kubectl`, Helm, `jq`, `curl`, `dig`, `hcloud`, Python 3 с PyYAML и `istioctl` версии **1.30.4**. Перед Helm-командами настройте kubeconfig и выберите целевой context. Helm charts и зависимости уже находятся в репозитории; `helm repo update` для `install.sh` не нужен. PyYAML нужен recovery-скрипту для чтения vendored Helm values.
 
 Нужны следующие секреты и условия:
 
@@ -98,7 +98,16 @@ curl -k -I --resolve final-work-k8s.raisa44.men:443:<LB_IP> https://final-work-k
 
 ## Хранилища
 
-HCCM должен работать до создания LoadBalancer Service, а CSI должен создать StorageClass `hcloud-volumes`. Prometheus хранит 10 дней на PVC 30Gi, Grafana использует PVC 10Gi. Loki использует один pod, filesystem, PVC 10Gi и retention `168h`; его PVC `storage-loki-0` нельзя удалять. Конфигурация Loki намеренно сохраняет schema `boltdb-shipper` v12 с датой `2024-01-01`. Подробности upgrade и backup находятся в [`docs/task-4-logging.md`](docs/task-4-logging.md).
+HCCM должен работать до создания LoadBalancer Service, а CSI должен создать StorageClass `hcloud-volumes`. Актуальные размеры monitoring PVC и replica count задаются vendored Helm values и проверяются recovery-скриптом, а не дублируются в этом тексте. Loki использует один pod, filesystem и retention `168h`; его PVC `storage-loki-0` нельзя удалять. Конфигурация Loki намеренно сохраняет schema `boltdb-shipper` v12 с датой `2024-01-01`. Подробности upgrade и backup находятся в [`docs/task-4-logging.md`](docs/task-4-logging.md).
+
+Мониторинговые PVC защищены от Terraform destroy: StorageClass использует
+`Retain`, а `install.sh` требует authoritative `hcloud volume list`, до
+monitoring Helm releases запускает fail-closed восстановление проверенных
+Hetzner volumes, а после monitoring проверяет все пять PVC и регистрирует
+только выбранные volumes короткими durable labels. Пять исторических IDs и
+точные claims находятся в `storage/monitoring-volume-registry.json`.
+Подробности pre-install recovery, static CSI PV и dynamic first bootstrap находятся в
+[`docs/monitoring-storage-recovery.md`](docs/monitoring-storage-recovery.md).
 
 ## Task 3: мониторинг
 

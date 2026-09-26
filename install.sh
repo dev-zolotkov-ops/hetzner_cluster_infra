@@ -7,6 +7,8 @@ HELM_DIR=./helm
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+command -v hcloud >/dev/null 2>&1 || { printf 'error: hcloud CLI is required for authoritative volume recovery\n' >&2; exit 1; }
+
 kubectl apply -f ${MANEFESTS_DIR}/ns_secrets_roles.yml
 
 kubectl patch secret hcloud -n kube-system \
@@ -20,6 +22,14 @@ helm upgrade --install -n kube-system hccm ${HELM_DIR}/hcloud-cloud-controller-m
 
 # CSI
 helm upgrade --install -n kube-system hcloud-csi ${HELM_DIR}/hcloud-csi -f ${HELM_DIR}/hcloud-csi/values.yaml --wait --timeout 10m
+
+# Recover only volumes identified by authoritative CSI PVC labels. On a bare
+# cluster the authoritative list can contain no monitoring candidates, leaving
+# dynamic provisioning available. Never infer identity from size or age.
+recovery_json="$(mktemp)"
+trap 'rm -f "$recovery_json"' EXIT
+hcloud volume list -o json >"$recovery_json"
+python3 "${SCRIPT_DIR}/storage/recover_monitoring_volumes.py" --volumes-json "$recovery_json"
 
 # Istio control plane and ingress gateway
 required_istio_version="1.30"
@@ -61,6 +71,9 @@ helm upgrade --install tempo ${HELM_DIR}/tempo -n monitoring -f ${HELM_DIR}/temp
 helm upgrade --install loki-datasource ${HELM_DIR}/loki-datasource -n monitoring --wait --timeout 10m
 helm upgrade --install tempo-datasource ${HELM_DIR}/tempo-datasource -n monitoring --wait --timeout 10m
 helm upgrade --install alloy ${HELM_DIR}/alloy -n monitoring -f ${HELM_DIR}/alloy/values-final-work.yaml --wait --timeout 10m
+
+hcloud volume list -o json >"$recovery_json"
+python3 "${SCRIPT_DIR}/storage/recover_monitoring_volumes.py" --post --volumes-json "$recovery_json"
 
 # CI/CD
 helm upgrade --install build-runner ${HELM_DIR}/gitlab-runner -n gitlab-runner --create-namespace -f ${HELM_DIR}/gitlab-runner/values.yaml

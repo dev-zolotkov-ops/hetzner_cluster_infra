@@ -1,0 +1,14 @@
+{
+  "apiVersion": 2,
+  "namespace": "monitoring",
+  "storageClass": "hcloud-volumes",
+  "location": "fsn1",
+  "legacyVolumeIds": [106953874, 106953876, 106953877, 106953891, 106954134],
+  "expectedClaims": [
+    {"role": "grafana", "claim": "kube-prometheus-stack-grafana"},
+    {"role": "loki", "claim": "storage-loki-0"},
+    {"role": "tempo", "claim": "storage-tempo-0"},
+    {"role": "prometheus-0", "claim": "prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0"},
+    {"role": "prometheus-1", "claim": "prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-1"}
+  ]
+}
