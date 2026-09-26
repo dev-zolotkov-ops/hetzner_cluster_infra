@@ -252,6 +252,7 @@ sourceNamespace:  # @schema type:[string, null]; default: null
 sources:
   - service
   - ingress
+  - istio-virtualservice
 
 # -- (REQUIRED) How DNS records are synchronized between sources and providers; must be set explicitly to one of `create-only`, `sync`, or `upsert-only`.
 policy: upsert-only # @schema enum:[create-only, sync, upsert-only]; type:string; required:true
@@ -260,7 +261,7 @@ policy: upsert-only # @schema enum:[create-only, sync, upsert-only]; type:string
 # Valid values are `txt`, `aws-sd`, `crd`, `dynamodb` & `noop`.
 registry: txt  # @schema enum:[txt, aws-sd, crd, dynamodb, noop]; default: "txt"
 # -- (string) Specify an identifier for this instance of _ExternalDNS_ when using a registry other than `noop`.
-txtOwnerId:  # @schema type:[string, null]; default: null
+txtOwnerId: final-work-k8s  # @schema type:[string, null]; default: null
 # -- (string) Specify a prefix for the domain names of TXT records created for the `txt` registry.
 # Mutually exclusive with `txtSuffix`.
 txtPrefix:  # @schema type:[string, null]; default: null
@@ -354,6 +355,7 @@ provider:  # @schema type: [object, string]
 # An array or map can be used, with maps allowing for value overrides; maps also support slice values to use the same arg multiple times.
 extraArgs:
   exclude-target-net: 192.168.40.0/24
+  cloudflare-proxied: true
 
 secretConfiguration:
   # -- If `true`, create a `Secret` to store sensitive provider configuration (**DEPRECATED**).

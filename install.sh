@@ -7,6 +7,8 @@ HELM_DIR=./helm
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+command -v hcloud >/dev/null 2>&1 || { printf 'error: hcloud CLI is required for authoritative volume recovery\n' >&2; exit 1; }
+
 kubectl apply -f ${MANEFESTS_DIR}/ns_secrets_roles.yml
 
 kubectl patch secret hcloud -n kube-system \
@@ -20,6 +22,14 @@ helm upgrade --install -n kube-system hccm ${HELM_DIR}/hcloud-cloud-controller-m
 
 # CSI
 helm upgrade --install -n kube-system hcloud-csi ${HELM_DIR}/hcloud-csi -f ${HELM_DIR}/hcloud-csi/values.yaml --wait --timeout 10m
+
+# Recover only volumes identified by authoritative CSI PVC labels. On a bare
+# cluster the authoritative list can contain no monitoring candidates, leaving
+# dynamic provisioning available. Never infer identity from size or age.
+recovery_json="$(mktemp)"
+trap 'rm -f "$recovery_json"' EXIT
+hcloud volume list -o json >"$recovery_json"
+python3 "${SCRIPT_DIR}/storage/recover_monitoring_volumes.py" --volumes-json "$recovery_json"
 
 # Istio control plane and ingress gateway
 required_istio_version="1.30"
@@ -38,11 +48,32 @@ helm upgrade --install cert-manager ${HELM_DIR}/cert-manager -n ingress --create
 # : "${ACME_EMAIL:?Set ACME_EMAIL to the ACME account email before deploying}"
 helm upgrade cert-manager ${HELM_DIR}/cert-manager -n ingress -f ${HELM_DIR}/cert-manager/values.yaml --set crds.enabled=true --set acme.enabled=true --wait --timeout 10m
 
-# kubectl apply -f ${MANEFESTS_DIR}/gateway.yml
+kubectl apply -f ${SCRIPT_DIR}/ingress/gateway_cert.yml \
+  -f ${SCRIPT_DIR}/ingress/ingress-telemetry.yml
+
+kubectl -n istio-system rollout status deployment/istio-ingressgateway --timeout=5m
+kubectl apply -f ${SCRIPT_DIR}/ingress/cloudflare-origin-policy.yml
 
 
 # monitoring
 helm upgrade --install kube-prometheus-stack ${HELM_DIR}/kube-prometheus-stack --version 91.4.1 -n monitoring --create-namespace -f ${HELM_DIR}/kube-prometheus-stack/values.yaml --wait --timeout 15m
+helm upgrade --install metrics-server ${HELM_DIR}/metrics-server -n monitoring -f ${HELM_DIR}/metrics-server/values-final-work.yaml --wait --timeout 10m
+kubectl wait --for=condition=Available deployment/metrics-server -n monitoring --timeout=5m
+kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="Available")].status}'=True apiservice/v1beta1.metrics.k8s.io --timeout=5m
+helm upgrade --install vertical-pod-autoscaler ${HELM_DIR}/vertical-pod-autoscaler -n monitoring -f ${HELM_DIR}/vertical-pod-autoscaler/values-final-work.yaml --wait --timeout 10m
+kubectl wait --for=condition=Established crd/verticalpodautoscalers.autoscaling.k8s.io --timeout=5m
+kubectl wait --for=condition=Available deployment/vertical-pod-autoscaler-admission-controller -n monitoring --timeout=5m
+kubectl wait --for=condition=Available deployment/vertical-pod-autoscaler-recommender -n monitoring --timeout=5m
+kubectl wait --for=condition=Available deployment/vertical-pod-autoscaler-updater -n monitoring --timeout=5m
+kubectl get --raw /apis/metrics.k8s.io/v1beta1 >/dev/null
+helm upgrade --install loki ${HELM_DIR}/loki -n monitoring -f ${HELM_DIR}/loki/values-final-work.yaml --wait --timeout 10m
+helm upgrade --install tempo ${HELM_DIR}/tempo -n monitoring -f ${HELM_DIR}/tempo/values-final-work.yaml --wait --timeout 10m
+helm upgrade --install loki-datasource ${HELM_DIR}/loki-datasource -n monitoring --wait --timeout 10m
+helm upgrade --install tempo-datasource ${HELM_DIR}/tempo-datasource -n monitoring --wait --timeout 10m
+helm upgrade --install alloy ${HELM_DIR}/alloy -n monitoring -f ${HELM_DIR}/alloy/values-final-work.yaml --wait --timeout 10m
+
+hcloud volume list -o json >"$recovery_json"
+python3 "${SCRIPT_DIR}/storage/recover_monitoring_volumes.py" --post --volumes-json "$recovery_json"
 
 # CI/CD
 helm upgrade --install build-runner ${HELM_DIR}/gitlab-runner -n gitlab-runner --create-namespace -f ${HELM_DIR}/gitlab-runner/values.yaml

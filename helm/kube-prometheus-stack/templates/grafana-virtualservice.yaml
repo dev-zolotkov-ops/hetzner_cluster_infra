@@ -1,0 +1,20 @@
+{{- if and .Values.grafana.enabled .Values.grafana.virtualService.enabled }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ .Values.grafana.virtualService.host }}
+spec:
+  hosts:
+    - {{ .Values.grafana.virtualService.host }}
+  gateways:
+    - {{ .Values.grafana.virtualService.gateway }}
+  http:
+    - route:
+        - destination:
+            host: {{ default (printf "%s-grafana" (include "kube-prometheus-stack.fullname" .)) .Values.grafana.fullnameOverride }}.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: 80
+{{- end }}

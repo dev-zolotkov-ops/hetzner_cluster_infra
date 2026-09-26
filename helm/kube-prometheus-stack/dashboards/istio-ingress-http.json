@@ -1,0 +1,23 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {"id":1,"type":"stat","title":"Requests in selected range","gridPos":{"h":5,"w":6,"x":0,"y":0},"fieldConfig":{"defaults":{"unit":"short","decimals":0}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum(increase(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code!=\"\"}[$__range]))","instant":true}]},
+    {"id":2,"type":"stat","title":"Current total RPS","gridPos":{"h":5,"w":6,"x":6,"y":0},"fieldConfig":{"defaults":{"unit":"reqps"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum(rate(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code!=\"\"}[$__rate_interval]))","instant":true}]},
+    {"id":3,"type":"stat","title":"4xx percentage","gridPos":{"h":5,"w":6,"x":12,"y":0},"fieldConfig":{"defaults":{"unit":"percent","min":0,"max":100}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"100 * (sum(rate(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code=~\"4..\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code!=\"\"}[$__rate_interval])) or vector(0)), 1e-9)","instant":true}]},
+    {"id":4,"type":"stat","title":"5xx percentage","gridPos":{"h":5,"w":6,"x":18,"y":0},"fieldConfig":{"defaults":{"unit":"percent","min":0,"max":100}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"100 * (sum(rate(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code=~\"5..\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code!=\"\"}[$__rate_interval])) or vector(0)), 1e-9)","instant":true}]},
+    {"id":5,"type":"timeseries","title":"RPS by request path","gridPos":{"h":8,"w":12,"x":0,"y":5},"fieldConfig":{"defaults":{"unit":"reqps"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum by (request_path) (rate(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code!=\"\"}[$__rate_interval]))","legendFormat":"{{request_path}}"}]},
+    {"id":6,"type":"timeseries","title":"RPS by response code","gridPos":{"h":8,"w":12,"x":12,"y":5},"fieldConfig":{"defaults":{"unit":"reqps"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum by (response_code) (rate(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code!=\"\"}[$__rate_interval]))","legendFormat":"{{response_code}}"}]},
+    {"id":7,"type":"table","title":"Requests by path and response code","gridPos":{"h":9,"w":24,"x":0,"y":13},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum by (request_path, response_code) (increase(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",request_path=~\"$path\",response_code!=\"\"}[$__range]))","instant":true,"format":"table"}]}
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["istio", "ingress", "http"],
+  "templating": {"list": [{"name":"path","label":"Path","type":"query","datasource":{"type":"prometheus","uid":"prometheus"},"multi":true,"includeAll":true,"allValue":".*","query":"label_values(istio_requests_total{reporter=\"source\",source_workload=\"istio-ingressgateway\",source_workload_namespace=\"istio-system\",request_path!=\"\",response_code!=\"\"}, request_path)","current":{"text":"All","value":["$__all"]}}]},
+  "time": {"from":"now-6h","to":"now"},
+  "title": "Istio / Ingress HTTP",
+  "uid": "istio-ingress-http",
+  "version": 2
+}

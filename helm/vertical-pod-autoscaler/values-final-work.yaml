@@ -1,0 +1,68 @@
+# Official Kubernetes Autoscaler chart 0.9.0 / VPA app 1.7.0.
+# Keep the controllers on tainted control planes; the only worker is reserved
+# for application capacity.
+admissionController:
+  enabled: true
+  replicas: 2
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ''
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  certGen:
+    enabled: true
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ''
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
+recommender:
+  enabled: true
+  replicas: 2
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ''
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+updater:
+  enabled: true
+  replicas: 2
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ''
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule

@@ -3,6 +3,26 @@
 
 The role bootstraps the Kubernetes control plane and worker nodes with kubeadm, installs the Calico CNI plugin, and fetches the resulting cluster kubeconfig.
 
+Kubelet serving certificates
+----------------------------
+
+After kubeadm initialization or node joins, the role persistently enables `serverTLSBootstrap: true` in `/var/lib/kubelet/config.yaml` and restarts kubelet only when that setting changes. This causes each kubelet to submit a `kubernetes.io/kubelet-serving` CSR. The role installs the pinned kubelet CSR approver after the first control-plane API is available and before other nodes join. It approves only validated kubelet-serving requests for the cluster node names and private network:
+
+The serving-certificate phase does not use `/etc/kubernetes/kubelet.conf` as a sufficient join sentinel. After each init/join, it waits for `kubelet.conf`, `config.yaml`, and `kubeadm-flags.env`; a missing artifact fails the play instead of silently skipping kubelet configuration. This protects against a partial or stale kubeadm bootstrap, which was the regression symptom.
+
+```bash
+kubectl get csr -o wide
+kubectl describe csr <csr-name>
+kubectl get csr <csr-name> -o wide
+```
+
+Verify that requests have username `system:node:<node-name>`, the expected node-serving SANs, and usages appropriate for a server certificate. Then verify kubelet HTTPS metrics and Prometheus targets:
+
+```bash
+kubectl get csr -o jsonpath='{range .items[?(@.spec.signerName=="kubernetes.io/kubelet-serving")]}{.metadata.name}{"\t"}{.status.conditions[*].type}{"\n"}{end}'
+kubectl -n monitoring get servicemonitor kube-prometheus-stack-kubelet -o yaml
+```
+
 Requirements
 ------------
 

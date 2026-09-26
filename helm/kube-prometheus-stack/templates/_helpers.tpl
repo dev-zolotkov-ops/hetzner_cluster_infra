@@ -372,6 +372,9 @@ global:
 {{- end }}
 {{- define "kube-prometheus-stack.kubelet.authConfig" }}
 {{- if .Values.kubelet.serviceMonitor.https }}
+{{- with .Values.kubelet.serviceMonitor.bearerTokenFile }}
+bearerTokenFile: {{ . }}
+{{- end }}
 {{- with .Values.kubelet.serviceMonitor.tlsConfig }}
 tlsConfig:
   {{- tpl (toYaml .) $ | nindent 2 }}

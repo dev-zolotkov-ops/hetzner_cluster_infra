@@ -1,0 +1,43 @@
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: main-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
+      tls:
+        httpsRedirect: true
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - final-work-k8s.raisa44.men
+        - grafana.raisa44.men
+      tls:
+        mode: SIMPLE
+        credentialName: final-work-k8s-tls
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: final-work-k8s-tls
+  namespace: istio-system
+spec:
+  secretName: final-work-k8s-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+    - final-work-k8s.raisa44.men
+    - grafana.raisa44.men

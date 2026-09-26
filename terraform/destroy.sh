@@ -89,7 +89,7 @@ lb_matches() {
     | select(any($services[];
         (($labels["kubernetes.io/service-uid"] // "") == .uid)
         or (($labels["kubernetes.io/service-name"] // "") == .service_name)
-        or any(.addresses[] as $address; ($ips | index($address)) != null)
+       or any(.addresses[]?; . as $address | ($ips | index($address)) != null)
       ))
     | $lb
   '
