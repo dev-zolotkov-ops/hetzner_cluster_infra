@@ -100,6 +100,15 @@ curl -k -I --resolve final-work-k8s.raisa44.men:443:<LB_IP> https://final-work-k
 
 HCCM должен работать до создания LoadBalancer Service, а CSI должен создать StorageClass `hcloud-volumes`. Prometheus хранит 10 дней на PVC 30Gi, Grafana использует PVC 10Gi. Loki использует один pod, filesystem, PVC 10Gi и retention `168h`; его PVC `storage-loki-0` нельзя удалять. Конфигурация Loki намеренно сохраняет schema `boltdb-shipper` v12 с датой `2024-01-01`. Подробности upgrade и backup находятся в [`docs/task-4-logging.md`](docs/task-4-logging.md).
 
+Мониторинговые PVC защищены от Terraform destroy: StorageClass использует
+`Retain`, а `install.sh` требует authoritative `hcloud volume list`, до
+monitoring Helm releases запускает fail-closed восстановление проверенных
+Hetzner volumes, а после monitoring проверяет все пять PVC и регистрирует
+только выбранные volumes короткими durable labels. Пять исторических IDs и
+точные claims находятся в `storage/monitoring-volume-registry.json`.
+Подробности pre-install recovery, static CSI PV и dynamic first bootstrap находятся в
+[`docs/monitoring-storage-recovery.md`](docs/monitoring-storage-recovery.md).
+
 ## Task 3: мониторинг
 
 `kube-prometheus-stack` устанавливается из `helm/kube-prometheus-stack/values.yaml` версией chart `91.4.1`. Включены kubelet/cAdvisor, node-exporter, kube-state-metrics и собственные dashboard `Kubernetes / Pod Resources`, `Kubernetes / Cluster Overview`, `Istio / Ingress HTTP`. Kubelet и cAdvisor скрапятся по HTTPS на `10250`; probe metrics отключены. Prometheus и Grafana размещаются на worker nodes, kube-state-metrics и admission jobs на control-plane.
