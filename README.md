@@ -2,6 +2,8 @@
 
 This repository deploys an HA Kubernetes cluster in Hetzner using Terraform, Ansible, and Helm. It is not an application development project: it documents infrastructure, network ingress, storage, monitoring, logging, and CI/CD.
 
+You can see all cluster schemes in the [`Figma board`](https://www.figma.com/board/7DpEdRo4Dt1yEFZayC7aFT/cluster_infra?node-id=0-1&t=4KzkGvRqa2mPa4l6-1)
+
 ## Purpose and Architecture
 
 Terraform creates `hcloud_server` resources for `masters`, `workers`, `ingress`, and `haproxy`, the `k8s-network` network with four subnets, a default route through HAProxy, the `k8s-nodes` and `k8s-haproxy` firewalls, and `terraform_data` resources for Ansible inventory and variables. Terraform does not create a Hetzner LoadBalancer. The LoadBalancer appears later through HCCM when a Kubernetes Service receives type `LoadBalancer`. Ansible prepares the hosts and installs Kubernetes through the `ansible/roles/preparing_hosts` and `ansible/roles/cluster` roles, called from `ansible/k8s-install.yml`.
@@ -21,7 +23,7 @@ The cluster uses:
 
 Public origins work only through Cloudflare: public VirtualServices require `cloudflare-proxied: true`, and `ingress/cloudflare-origin-policy.yml` blocks direct traffic that does not come from Cloudflare CIDRs. The Hetzner LoadBalancer and Istio ingress gateway use the PROXY protocol so Istio can see the client's original IP. Cloudflare IPv4/IPv6 CIDRs must be checked periodically against the official lists.
 
-The shared Gateway and Certificate are in `ingress/gateway_cert.yml`; Telemetry for Istio HTTP metrics is in `ingress/ingress-telemetry.yml`. Public addresses are `https://final-work-k8s.raisa44.men` and `https://grafana.raisa44.men`.
+The shared Gateway and Certificate are in `ingress/gateway_cert.yml`; Telemetry for Istio HTTP metrics is in `ingress/ingress-telemetry.yml`. Public addresses are `https://final-work-k8s.raisa44.men` and `https://grafana.raisa44.men` (use this domain names like templates to replace it with your real future cluster doemain names).
 
 ## Local Requirements
 
