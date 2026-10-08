@@ -1,42 +1,42 @@
-# Инфраструктура кластера
+# Cluster Infrastructure
 
-Репозиторий предназначен для развёртывания HA Kubernetes-кластера в Hetzner с помощью Terraform, Ansible и Helm. Это не проект для разработки приложений: здесь описаны инфраструктура, сетевой вход, хранилища, мониторинг, логирование и CI/CD.
+This repository deploys an HA Kubernetes cluster in Hetzner using Terraform, Ansible, and Helm. It is not an application development project: it documents infrastructure, network ingress, storage, monitoring, logging, and CI/CD.
 
-## Назначение и архитектура
+## Purpose and Architecture
 
-Terraform создаёт `hcloud_server` для `masters`, `workers`, `ingress` и `haproxy`, сеть `k8s-network` с четырьмя subnet, маршрут по умолчанию через HAProxy, firewall `k8s-nodes` и `k8s-haproxy`, а также `terraform_data` для inventory и переменных Ansible. Terraform не создаёт Hetzner LoadBalancer. LoadBalancer появляется позже через HCCM, когда Kubernetes Service получает тип `LoadBalancer`. Ansible подготавливает хосты и устанавливает Kubernetes через роли `ansible/roles/preparing_hosts` и `ansible/roles/cluster`, вызываемые из `ansible/k8s-install.yml`.
+Terraform creates `hcloud_server` resources for `masters`, `workers`, `ingress`, and `haproxy`, the `k8s-network` network with four subnets, a default route through HAProxy, the `k8s-nodes` and `k8s-haproxy` firewalls, and `terraform_data` resources for Ansible inventory and variables. Terraform does not create a Hetzner LoadBalancer. The LoadBalancer appears later through HCCM when a Kubernetes Service receives type `LoadBalancer`. Ansible prepares the hosts and installs Kubernetes through the `ansible/roles/preparing_hosts` and `ansible/roles/cluster` roles, called from `ansible/k8s-install.yml`.
 
-В кластере используются:
+The cluster uses:
 
-- Hetzner Cloud Controller Manager (`hccm`) для cloud-интеграции и LoadBalancer.
-- Hetzner CSI (`hcloud-csi`) и StorageClass `hcloud-volumes` для PVC.
-- Istio control plane и `istio-ingressgateway`.
-- `external-dns` с Cloudflare и cert-manager с production Let's Encrypt DNS-01.
-- `postfinance/kubelet-csr-approver` для безопасного одобрения `kubernetes.io/kubelet-serving` CSR и ротации serving-сертификатов.
-- `kube-prometheus-stack` для Prometheus, Grafana, Alertmanager, node-exporter и kube-state-metrics.
-- Loki в режиме `Monolithic` и Alloy DaemonSet для логов контейнеров.
-- GitLab Runner releases `build-runner`, `deploy-runner` и `test-runner`.
-- Tempo в режиме `Monolithic` и Alloy OTLP pipeline для дополнительного tracing.
-- Metrics Server для `metrics.k8s.io` и Kubernetes Autoscaler VPA для рекомендаций CPU/памяти и admission webhook.
+- Hetzner Cloud Controller Manager (`hccm`) for cloud integration and LoadBalancer support.
+- Hetzner CSI (`hcloud-csi`) and the `hcloud-volumes` StorageClass for PVCs.
+- The Istio control plane and `istio-ingressgateway`.
+- `external-dns` with Cloudflare and cert-manager with production Let's Encrypt DNS-01.
+- `postfinance/kubelet-csr-approver` for safely approving `kubernetes.io/kubelet-serving` CSRs and rotating serving certificates.
+- `kube-prometheus-stack` for Prometheus, Grafana, Alertmanager, node-exporter, and kube-state-metrics.
+- Loki in `Monolithic` mode and an Alloy DaemonSet for container logs.
+- GitLab Runner releases `build-runner`, `deploy-runner`, and `test-runner`.
+- Tempo in `Monolithic` mode and an Alloy OTLP pipeline for additional tracing.
+- Metrics Server for `metrics.k8s.io` and Kubernetes Autoscaler VPA for CPU/memory recommendations and the admission webhook.
 
-Публичный origin работает только через Cloudflare: для публичных VirtualService требуется `cloudflare-proxied: true`, а `ingress/cloudflare-origin-policy.yml` запрещает прямой трафик не из Cloudflare CIDR. Hetzner LoadBalancer и Istio ingress gateway используют PROXY protocol, чтобы Istio видел исходный IP клиента. Cloudflare IPv4/IPv6 CIDR нужно периодически сверять с официальными списками.
+Public origins work only through Cloudflare: public VirtualServices require `cloudflare-proxied: true`, and `ingress/cloudflare-origin-policy.yml` blocks direct traffic that does not come from Cloudflare CIDRs. The Hetzner LoadBalancer and Istio ingress gateway use the PROXY protocol so Istio can see the client's original IP. Cloudflare IPv4/IPv6 CIDRs must be checked periodically against the official lists.
 
-Общий Gateway и Certificate находятся в `ingress/gateway_cert.yml`; Telemetry для HTTP-метрик Istio находится в `ingress/ingress-telemetry.yml`. Публичные адреса: `https://final-work-k8s.raisa44.men` и `https://grafana.raisa44.men`.
+The shared Gateway and Certificate are in `ingress/gateway_cert.yml`; Telemetry for Istio HTTP metrics is in `ingress/ingress-telemetry.yml`. Public addresses are `https://final-work-k8s.raisa44.men` and `https://grafana.raisa44.men`.
 
-## Что нужно локально
+## Local Requirements
 
-Нужны Terraform с lockfile провайдера Hetzner, Ansible, `kubectl`, Helm, `jq`, `curl`, `dig`, `hcloud`, Python 3 с PyYAML и `istioctl` версии **1.30.4**. Перед Helm-командами настройте kubeconfig и выберите целевой context. Helm charts и зависимости уже находятся в репозитории; `helm repo update` для `install.sh` не нужен. PyYAML нужен recovery-скрипту для чтения vendored Helm values.
+You need Terraform with the Hetzner provider lockfile, Ansible, `kubectl`, Helm, `jq`, `curl`, `dig`, `hcloud`, Python 3 with PyYAML, and `istioctl` version **1.30.4**. Before running Helm commands, configure kubeconfig and select the target context. Helm charts and dependencies are already in the repository; `helm repo update` is not needed for `install.sh`. PyYAML is required by the recovery script to read vendored Helm values.
 
-Нужны следующие секреты и условия:
+The following secrets and conditions are required:
 
-- `HCLOUD_TOKEN` для Terraform.
-- Secret `hcloud` в `kube-system` с ключом `token`; `install.sh` дополнительно записывает в него id сети `k8s-network`.
-- Secret `grafana-admin-credentials` в `monitoring` с ключами `admin-user` и `admin-password`.
-- Secret `cloudflare-external-dns` в `ingress` с ключом `api-token`.
-- Secret `cloudflare-cert-manager` в `ingress` с ключом `api-token`.
-- Файл `../../../../.sensitive_data/ns_secrets_roles.yml` и скрипт `../../../../.sensitive_data/opencode_kubeconfig.sh`, которые используются текущим `install.sh`; этот путь вычисляется относительно корня репозитория, а значения секретов в репозиторий не добавляются.
+- `HCLOUD_TOKEN` for Terraform.
+- Secret `hcloud` in `kube-system` with the `token` key; `install.sh` additionally writes the `k8s-network` network ID to it.
+- Secret `grafana-admin-credentials` in `monitoring` with the `admin-user` and `admin-password` keys.
+- Secret `cloudflare-external-dns` in `ingress` with the `api-token` key.
+- Secret `cloudflare-cert-manager` in `ingress` with the `api-token` key.
+- Files `../../../../.sensitive_data/ns_secrets_roles.yml` and `../../../../.sensitive_data/opencode_kubeconfig.sh`, used by the current `install.sh`; this path is calculated relative to the repository root, and secret values are not added to the repository.
 
-Проверка перед развёртыванием:
+Check the environment before deployment:
 
 ```bash
 terraform version
@@ -53,9 +53,9 @@ kubectl -n monitoring get secret grafana-admin-credentials
 kubectl -n ingress get secret cloudflare-external-dns cloudflare-cert-manager
 ```
 
-## Порядок развёртывания
+## Deployment Order
 
-1. Создайте инфраструктуру из `terraform/`:
+1. Create the infrastructure from `terraform/`:
 
 ```bash
 cd terraform
@@ -64,7 +64,7 @@ terraform plan
 terraform apply
 ```
 
-2. Подготовьте хосты и установите кластер из `ansible/`:
+2. Prepare the hosts and install the cluster from `ansible/`:
 
 ```bash
 cd ../ansible
@@ -72,19 +72,19 @@ ansible-playbook k8s-install.yml -t preparing_hosts
 ansible-playbook k8s-install.yml -t cluster
 ```
 
-3. Из корня репозитория создайте prerequisites и запустите полный bootstrap:
+3. From the repository root, create the prerequisites and run the complete bootstrap:
 
 ```bash
 ./install.sh
 ```
 
-Скрипт применяет внешний файл `ns_secrets_roles.yml`, устанавливает HCCM и CSI, проверяет только major/minor `istioctl` на соответствие `1.30`, устанавливает Istio, ExternalDNS и cert-manager, применяет `ingress/gateway_cert.yml`, `ingress/ingress-telemetry.yml` и `ingress/cloudflare-origin-policy.yml`, затем устанавливает kube-prometheus-stack, Metrics Server, VPA, остальной monitoring stack и три GitLab Runner. В локальных prerequisites указан target `istioctl 1.30.4`: он совместим с проверкой `1.30`, поскольку patch-версия скриптом не фиксируется. Отдельный ACME email в текущей команде не задаётся.
+The script applies the external `ns_secrets_roles.yml` file, installs HCCM and CSI, checks only the major/minor `istioctl` version against `1.30`, installs Istio, ExternalDNS, and cert-manager, applies `ingress/gateway_cert.yml`, `ingress/ingress-telemetry.yml`, and `ingress/cloudflare-origin-policy.yml`, then installs kube-prometheus-stack, Metrics Server, VPA, the remaining monitoring stack, and the three GitLab Runners. The local prerequisites specify target `istioctl 1.30.4`; it is compatible with the `1.30` check because the script does not pin the patch version. The current command does not set a separate ACME email.
 
-## Ingress, DNS и сертификаты
+## Ingress, DNS, and Certificates
 
-ExternalDNS публикует DNS через Cloudflare. cert-manager получает production-сертификат Let's Encrypt через DNS-01 с Secret `cloudflare-cert-manager`. Gateway обслуживает оба публичных имени, сертификат имеет Secret `final-work-k8s-tls`, HTTP перенаправляется на HTTPS. Grafana VirtualService создаётся values `helm/kube-prometheus-stack/values.yaml`; второй Gateway, Certificate или Grafana VirtualService создавать не нужно.
+ExternalDNS publishes DNS through Cloudflare. cert-manager obtains a production Let's Encrypt certificate through DNS-01 using Secret `cloudflare-cert-manager`. The Gateway serves both public names, the certificate uses Secret `final-work-k8s-tls`, and HTTP redirects to HTTPS. The Grafana VirtualService is created by the values in `helm/kube-prometheus-stack/values.yaml`; no second Gateway, Certificate, or Grafana VirtualService is needed.
 
-Проверка origin-политики и PROXY protocol:
+Check the origin policy and PROXY protocol:
 
 ```bash
 kubectl -n istio-system get authorizationpolicy cloudflare-origin-only
@@ -94,45 +94,35 @@ curl -I https://final-work-k8s.raisa44.men/
 curl -k -I --resolve final-work-k8s.raisa44.men:443:<LB_IP> https://final-work-k8s.raisa44.men/
 ```
 
-Запрос через hostname должен идти через Cloudflare, а прямой `curl --resolve` к LoadBalancer должен вернуть `403`. Внутренний scrape Prometheus на `15090` разрешён; этот порт не публикуется LoadBalancer и не открывает трафик приложения.
+A request through the hostname must go through Cloudflare, while a direct `curl --resolve` request to the LoadBalancer must return `403`. Internal Prometheus scraping on `15090` is allowed; this port is not published by the LoadBalancer and does not open application traffic.
 
-## Хранилища
+## Storage
 
-HCCM должен работать до создания LoadBalancer Service, а CSI должен создать StorageClass `hcloud-volumes`. Актуальные размеры monitoring PVC и replica count задаются vendored Helm values и проверяются recovery-скриптом, а не дублируются в этом тексте. Loki использует один pod, filesystem и retention `168h`; его PVC `storage-loki-0` нельзя удалять. Конфигурация Loki намеренно сохраняет schema `boltdb-shipper` v12 с датой `2024-01-01`. Подробности upgrade и backup находятся в [`docs/task-4-logging.md`](docs/task-4-logging.md).
+HCCM must be running before a LoadBalancer Service is created, and CSI must create the `hcloud-volumes` StorageClass. Current monitoring PVC sizes and replica counts are defined in the vendored Helm values and checked by the recovery script rather than duplicated here. Loki uses one pod, filesystem storage, and `168h` retention; its `storage-loki-0` PVC must not be deleted. Loki's configuration intentionally retains the `boltdb-shipper` v12 schema with the date `2024-01-01`. Upgrade and backup details are in [`docs/logging-and-tracing.md`](docs/logging-and-tracing.md).
 
-Мониторинговые PVC защищены от Terraform destroy: StorageClass использует
-`Retain`, а `install.sh` требует authoritative `hcloud volume list`, до
-monitoring Helm releases запускает fail-closed восстановление проверенных
-Hetzner volumes, а после monitoring проверяет все пять PVC и регистрирует
-только выбранные volumes короткими durable labels. Пять исторических IDs и
-точные claims находятся в `storage/monitoring-volume-registry.json`.
-Подробности pre-install recovery, static CSI PV и dynamic first bootstrap находятся в
-[`docs/monitoring-storage-recovery.md`](docs/monitoring-storage-recovery.md).
+Monitoring PVCs are protected from Terraform destroy: the StorageClass uses `Retain`, and `install.sh` requires an authoritative `hcloud volume list`, performs fail-closed recovery of verified Hetzner volumes before the monitoring Helm releases, then checks all five PVCs after monitoring and registers only the selected volumes with short durable labels. The five historical IDs and exact claims are in `storage/monitoring-volume-registry.json`.
 
-## Task 3: мониторинг
+Details of pre-install recovery, static CSI PVs, and the dynamic first bootstrap are in [`docs/monitoring-storage-recovery.md`](docs/monitoring-storage-recovery.md).
 
-`kube-prometheus-stack` устанавливается из `helm/kube-prometheus-stack/values.yaml` версией chart `91.4.1`. Включены kubelet/cAdvisor, node-exporter, kube-state-metrics и собственные dashboard `Kubernetes / Pod Resources`, `Kubernetes / Cluster Overview`, `Istio / Ingress HTTP`. Kubelet и cAdvisor скрапятся по HTTPS на `10250`; probe metrics отключены. Prometheus и Grafana размещаются на worker nodes, kube-state-metrics и admission jobs на control-plane.
+## Monitoring
 
-Подробные назначение метрик, панели, проверки, артефакты, troubleshooting и бонус Istio ingress HTTP: [`docs/task-3-monitoring.md`](docs/task-3-monitoring.md).
+`kube-prometheus-stack` is installed from `helm/kube-prometheus-stack/values.yaml` at chart version `91.4.1`. Kubelet/cAdvisor, node-exporter, kube-state-metrics, and the custom dashboards `Kubernetes / Pod Resources`, `Kubernetes / Cluster Overview`, and `Istio / Ingress HTTP` are enabled. Kubelet and cAdvisor are scraped over HTTPS on `10250`; probe metrics are disabled. Prometheus and Grafana run on worker nodes, while kube-state-metrics and admission jobs run on the control plane.
 
-## Task 4: логирование
+Detailed metric purposes, dashboards, checks, artifacts, troubleshooting, and the Istio ingress HTTP bonus are documented in [`docs/monitoring.md`](docs/monitoring.md).
 
-`helm/loki/values-final-work.yaml` устанавливает Loki, `helm/alloy/values-final-work.yaml` устанавливает Alloy DaemonSet на узлах, а `helm/loki-datasource` создаёт datasource `Loki` для Grafana. Loki доступен только внутри кластера; поток логов: pod -> Alloy -> Loki -> Grafana Explore.
+## Logging and Tracing
 
-Подробные параметры, порядок upgrade, backup, LogQL, troubleshooting и acceptance checklist: [`docs/task-4-logging.md`](docs/task-4-logging.md).
+`helm/loki/values-final-work.yaml` installs Loki, `helm/alloy/values-final-work.yaml` installs the Alloy DaemonSet on the nodes, and `helm/loki-datasource` creates the `Loki` datasource for Grafana. Loki is available only inside the cluster; the log flow is pod -> Alloy -> Loki -> Grafana Explore.
 
-## Task 5: autoscaling
+Detailed parameters, upgrade order, backup, LogQL, troubleshooting, and the acceptance checklist are in [`docs/logging-and-tracing.md`](docs/logging-and-tracing.md).
 
-Metrics Server `3.14.0` / app `0.9.0` публикует защищённый ресурсный API `metrics.k8s.io`; затем VPA chart `0.9.0` / app `1.7.0` устанавливает CRD, recommender, updater и admission controller/webhook. Оба официальных chart полностью vendored в `helm/metrics-server` и `helm/vertical-pod-autoscaler`. Компоненты toleration-ами работают на трёх tainted control-plane, не занимая единственный worker. Подробности HPA/VPA, upgrade и проверки: [`docs/task-5-autoscaling.md`](docs/task-5-autoscaling.md).
+## Autoscaling
 
-Дополнительный tracing подготовлен через Tempo chart `3.0.0` / app `3.0.3`,
-Tempo datasource UID `tempo` и OTLP-порты Alloy `4317`/`4318`; существующий
-log flow не изменяется. Источник spans — instrumented сервисы Online Boutique
-`v0.10.0`, отправляющие OTLP через Alloy в Tempo. До redeploy boutique с tracing
-environment variables live spans не ожидаются; подробности и проверка находятся
-в [`docs/task-4-logging.md`](docs/task-4-logging.md).
+Metrics Server `3.14.0` / app `0.9.0` publishes the protected `metrics.k8s.io` resource API. VPA chart `0.9.0` / app `1.7.0` then installs the CRD, recommender, updater, and admission controller/webhook. Both official charts are fully vendored in `helm/metrics-server` and `helm/vertical-pod-autoscaler`. Tolerations allow the components to run on the three tainted control-plane nodes without occupying the sole worker. Details of HPA/VPA, upgrades, and checks are in [`docs/autoscaling.md`](docs/autoscaling.md).
 
-## Проверка кластера
+Additional tracing is prepared through Tempo chart `3.0.0` / app `3.0.3`, the Tempo datasource UID `tempo`, and Alloy OTLP ports `4317`/`4318`; the existing log flow is unchanged. The span source is the instrumented Online Boutique service `v0.10.0`, which sends OTLP through Alloy to Tempo. Live spans are not expected until the boutique is redeployed with tracing environment variables; details and verification are in [`docs/logging-and-tracing.md`](docs/logging-and-tracing.md).
+
+## Cluster Verification
 
 ```bash
 kubectl -n kube-system get deployment kubelet-csr-approver
@@ -145,4 +135,4 @@ kubectl get certificate -A
 dig grafana.raisa44.men
 ```
 
-Для быстрого проверки Task 3 используйте команды и PromQL из [`docs/task-3-monitoring.md`](docs/task-3-monitoring.md); для проверки Loki и Alloy используйте [`docs/task-4-logging.md`](docs/task-4-logging.md). Не включайте секреты в вывод, скриншоты и артефакты.
+For a quick Monitoring check, use the commands and PromQL in [`docs/monitoring.md`](docs/monitoring.md); for Loki and Alloy checks, use [`docs/logging-and-tracing.md`](docs/logging-and-tracing.md). Do not include secrets in output, screenshots, or artifacts.
