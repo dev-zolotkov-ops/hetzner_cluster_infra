@@ -1,62 +1,38 @@
-# Восстановление хранилищ мониторинга
+# Monitoring Storage Recovery
 
-`install.sh` запускает `storage/recover_monitoring_volumes.py` сразу после
-установки CSI и до Helm-релизов мониторинга. Шаг идемпотентен и работает с
-fail-closed политикой:
+`install.sh` runs `storage/recover_monitoring_volumes.py` immediately after CSI installation and before the monitoring Helm releases. The step is idempotent and uses a fail-closed policy:
 
-- На пустом кластере без найденных старых volume не создаётся PV, поэтому CSI
-  продолжает динамическое provision-ирование.
-- Volume принимается только при совпадении CSI-меток `pvc-name` и
-  `pvc-namespace` с одним из пяти ожидаемых claims. Для длинного имени
-  допускается левая обрезка до последних 63 символов.
-- При наличии старого и нового volume для одного claim выбирается legacy ID.
-  Если его нет, нужен ровно один role-tagged кандидат или ровно один другой
-  кандидат. Неоднозначность, отсутствие identity у известного legacy ID,
-  неверный размер/локация, подключённый выбранный legacy volume и конфликт
-  Kubernetes binding останавливают bootstrap.
-- Восстановленный PV использует CSI `csi.hetzner.cloud`, StorageClass
-  `hcloud-volumes`, RWO, `ext4`, `Retain`, zone affinity и точный `claimRef`.
+- On an empty cluster with no old volumes found, no PV is created, so CSI continues dynamic provisioning.
+- A volume is accepted only when its CSI labels `pvc-name` and `pvc-namespace` match one of the five expected claims. For a long name, left truncation to the last 63 characters is allowed.
+- When both an old and a new volume exist for one claim, the legacy ID is selected. If it is absent, exactly one role-tagged candidate or exactly one other candidate is required. Ambiguity, missing identity for a known legacy ID, an incorrect size/location, a selected legacy volume that is attached, or a Kubernetes binding conflict stops the bootstrap.
+- The recovered PV uses CSI `csi.hetzner.cloud`, StorageClass `hcloud-volumes`, RWO, `ext4`, `Retain`, zone affinity, and the exact `claimRef`.
 
-Реестр находится в `storage/monitoring-volume-registry.json`: в нём указаны
-пять claims и legacy IDs. Размеры в реестре не дублируются. Необязательная
-метка `cluster-infra-pvc-id=<role>` проверяется относительно CSI-меток и сама
-по себе identity не является.
+The registry is in `storage/monitoring-volume-registry.json`; it specifies five claims and legacy IDs. Sizes are not duplicated in the registry. The optional label `cluster-infra-pvc-id=<role>` is checked against CSI labels and is not an identity by itself.
 
-Размеры, включённость persistence, StorageClass и replica count читаются при
-каждом запуске из vendored Helm values:
+Sizes, persistence enablement, StorageClass, and replica count are read from the vendored Helm values on every run:
 
-- `helm/kube-prometheus-stack/values.yaml` для Grafana и Prometheus;
-- `helm/loki/values-final-work.yaml` для Loki;
-- `helm/tempo/values-final-work.yaml` для Tempo.
+- `helm/kube-prometheus-stack/values.yaml` for Grafana and Prometheus;
+- `helm/loki/values-final-work.yaml` for Loki;
+- `helm/tempo/values-final-work.yaml` for Tempo.
 
-Локация `fsn1` задаётся в реестре, а не в Helm values. Скрипт требует Python 3
-и PyYAML и останавливается при неверной структуре YAML, отключённом persistence,
-неподходящем StorageClass, неверных replica count или неположительном Gi
-размере.
+The `fsn1` location is specified in the registry, not in the Helm values. The script requires Python 3 and PyYAML and stops for an invalid YAML structure, disabled persistence, an unsuitable StorageClass, incorrect replica counts, or a non-positive Gi size.
 
-Офлайн-проверка манифеста:
+Offline manifest check:
 
 ```bash
 python3 storage/recover_monitoring_volumes.py \
   --volumes-json /path/to/verified-hcloud-volume-list.json --print-manifest
 ```
 
-JSON должен содержать только необходимые поля списка volume, например `id`,
-`size`, `location` и `labels`. Не сохраняйте token или API-ответы с секретами.
+The JSON must contain only the necessary fields from the volume list, such as `id`, `size`, `location`, and `labels`. Do not store tokens or API responses containing secrets.
 
-После установки monitoring `install.sh` получает новый authoritative volume
-list, проверяет все пять PVC и CSI handles, устанавливает `Retain` для bound
-PV, добавляет короткую role-метку только выбранным volume и повторно проверяет
-метки. Чужие и orphan volume не изменяются. Нельзя сопоставлять replacement
-только по размеру или возрасту.
+After monitoring installation, `install.sh` obtains a new authoritative volume list, checks all five PVCs and CSI handles, sets `Retain` for bound PVs, adds a short role label only to the selected volumes, and checks the labels again. Foreign and orphan volumes are not modified. A replacement must not be matched solely by size or age.
 
-Ручная post-проверка:
+Manual post-check:
 
 ```bash
 hcloud volume list -o json > /tmp/volumes.json
 python3 storage/recover_monitoring_volumes.py --post --volumes-json /tmp/volumes.json
 ```
 
-Режим `--print-manifest` ничего не изменяет. Post-режим после Kubernetes
-проверок использует `hcloud volume add-label <id>
-cluster-infra-pvc-id=<role>` и проверяет результат свежим списком volume.
+`--print-manifest` mode makes no changes. After Kubernetes checks, post mode uses `hcloud volume add-label <id> cluster-infra-pvc-id=<role>` and verifies the result with a fresh volume list.
