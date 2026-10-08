@@ -1,19 +1,19 @@
-*Ручное монтирование существующих томов 
+*Manually mounting existing volumes
 
-Если релиз уже создал новые PVC и тома, вручную для каждого PVC нужно освободить его имя и создать привязку к старому Hetzner ID. Пример ниже для Grafana; для двух Prometheus, Loki и Tempo действия те же.
+If the release has already created new PVCs and volumes, manually free the name of each PVC and bind it to the old Hetzner ID. The example below is for Grafana; use the same procedure for the two Prometheus instances, Loki, and Tempo.
 
-Сопоставь старые ID с PVC по pvc-name/pvc-namespace, проверь размер и что старый том отсоединён. Сохрани данные и манифесты новых PVC/PV перед переключением.
+Map the old IDs to PVCs using pvc-name/pvc-namespace, verify the size, and confirm that the old volume is detached. Save the data and manifests of the new PVCs/PVs before switching.
 
 hcloud volume list -o json |
   jq -r '.[] | [.id, .size, .location.name, .labels["pvc-name"], .labels["pvc-namespace"]] | @tsv'
 
-Останови использующие PVC приложения, включая Prometheus через его оператор, и дождись удаления Pod’ов:
+Stop the applications using the PVCs, including Prometheus through its operator, and wait for the Pods to be deleted:
 
 kubectl -n monitoring scale deployment/kube-prometheus-stack-grafana statefulset/loki statefulset/tempo --replicas=0
 kubectl -n monitoring patch prometheus kube-prometheus-stack-prometheus --type=merge -p '{"spec":{"replicas":0}}'
 kubectl -n monitoring get pods
 
-Сохрани новый том, прежде чем удалять его PVC. Для Grafana:
+Preserve the new volume before deleting its PVC. For Grafana:
 
 CLAIM=kube-prometheus-stack-grafana
 NEW_PV=$(kubectl -n monitoring get pvc "$CLAIM" -o jsonpath='{.spec.volumeName}')
@@ -21,15 +21,15 @@ kubectl -n monitoring get pvc "$CLAIM" -o yaml > grafana-pvc-before.yaml
 kubectl get pv "$NEW_PV" -o yaml > grafana-new-pv-before.yaml
 kubectl patch pv "$NEW_PV" --type=merge -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
 
-С Retain удаление PVC оставит новый Hetzner-том на месте. Проверь, что патч применился, до удаления PVC.
+With Retain, deleting the PVC will leave the new Hetzner volume in place. Verify that the patch was applied before deleting the PVC.
 
-Удали новый PVC после остановки Pod’ов:
+Delete the new PVC after the Pods have stopped:
 
 kubectl -n monitoring delete pvc "$CLAIM"
 
-Не удаляй finalizer вручную: если PVC остаётся в Terminating, его ещё использует Pod.
+Do not remove the finalizer manually: if the PVC remains in Terminating, a Pod is still using it.
 
-Создай PV для старого тома. Подставь проверенный OLD_ID; размер должен соответствовать старому тому и запросу PVC:
+Create a PV for the old volume. Substitute the verified OLD_ID; the size must match the old volume and the PVC request:
 
 apiVersion: v1
 kind: PersistentVolume
@@ -56,11 +56,11 @@ spec:
             - key: topology.kubernetes.io/zone
               operator: In
               values: [fsn1]
-Создай PVC с прежним именем, тем же StorageClass и запросом размера, указав spec.volumeName: restore-grafana. За основу возьми сохранённый grafana-pvc-before.yaml: убери status и служебные поля Kubernetes (uid, resourceVersion, creationTimestamp, managedFields, finalizers), сохрани Helm-аннотации владельца. claimRef на PV и volumeName на PVC задают конкретную пару.
+Create a PVC with the previous name, the same StorageClass, and the same size request, specifying spec.volumeName: restore-grafana. Use the saved grafana-pvc-before.yaml as the basis: remove status and Kubernetes-managed fields (uid, resourceVersion, creationTimestamp, managedFields, finalizers), while preserving the Helm owner annotations. claimRef on the PV and volumeName on the PVC define the specific pair.
 
-Проверь Bound и Hetzner ID:
+Verify Bound and the Hetzner ID:
 
 kubectl -n monitoring get pvc "$CLAIM"
 kubectl get pv restore-grafana -o jsonpath='{.spec.csi.volumeHandle}{"\n"}'
 
-После переключения всех пяти PVC верни реплики Grafana, Loki, Tempo и Prometheus и проверь данные в приложениях. Старые новосозданные тома пока оставь с Retain: удалять их стоит только после проверки восстановления.
+After switching all five PVCs, restore the replicas for Grafana, Loki, Tempo, and Prometheus, and verify the data in the applications. Leave the newly created old volumes with Retain for now: delete them only after verifying the recovery.
